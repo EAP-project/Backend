@@ -1,7 +1,7 @@
-package com.example.demo.service;
+package com.automobileproject.EAP.service;
 
-import com.example.demo.model.User;
-import com.example.demo.repository.UserRepository;
+import com.automobileproject.EAP.model.User;
+import com.automobileproject.EAP.repository.UserRepository;
 import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;

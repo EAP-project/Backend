@@ -1,4 +1,4 @@
-package com.example.demo.util;
+package com.automobileproject.EAP.util;
 
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;

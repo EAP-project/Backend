@@ -1,7 +1,7 @@
 package com.automobileproject.EAP.filter;
 
-import com.example.demo.service.MyUserDetailsService;
-import com.example.demo.util.JwtUtil;
+import com.automobileproject.EAP.service.MyUserDetailsService;
+import com.automobileproject.EAP.util.JwtUtil;
 import jakarta.servlet.FilterChain;
 import jakarta.servlet.ServletException;
 import jakarta.servlet.http.HttpServletRequest;

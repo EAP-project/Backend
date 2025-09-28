@@ -1,6 +1,6 @@
 package com.automobileproject.EAP.config;
 
-import com.example.demo.filter.JwtRequestFilter;
+import com.automobileproject.EAP.filter.JwtRequestFilter;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Configuration;
 import org.springframework.security.authentication.AuthenticationManager;
