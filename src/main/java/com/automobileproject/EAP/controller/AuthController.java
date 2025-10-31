@@ -1,9 +1,13 @@
 package com.automobileproject.EAP.controller;
 
+import com.automobileproject.EAP.dto.*;
+import com.automobileproject.EAP.mapper.UserMapper;
 import com.automobileproject.EAP.model.User;
 import com.automobileproject.EAP.service.UserService;
 import com.automobileproject.EAP.util.JwtUtil;
-import org.springframework.beans.factory.annotation.Autowired;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -11,7 +15,6 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
@@ -19,206 +22,68 @@ import org.springframework.web.bind.annotation.RestController;
 
 @RestController
 @RequestMapping("/api")
+@RequiredArgsConstructor
+@Slf4j
 public class AuthController {
 
-    @Autowired
-    private UserService userService;
-
-    @Autowired
-    private PasswordEncoder passwordEncoder;
-
-    @Autowired
-    private AuthenticationManager authenticationManager;
-
-    @Autowired
-    private UserDetailsService userDetailsService;
-
-    @Autowired
-    private JwtUtil jwtUtil;
+    private final UserService userService;
+    private final AuthenticationManager authenticationManager;
+    private final UserDetailsService userDetailsService;
+    private final JwtUtil jwtUtil;
+    private final UserMapper userMapper;
 
     @PostMapping("/register")
-    public ResponseEntity<?> registerUser(@RequestBody User user) {
+    public ResponseEntity<?> registerUser(@Valid @RequestBody RegistrationRequest request) {
         try {
-            System.out.println("Received registration request for: " + user.getUsername() + " with role: " + user.getRole());
+            log.info("Registration request received for: {}", request.getEmail());
 
-            // Validate role
-            if (user.getRole() == null) {
-                return ResponseEntity.badRequest().body(
-                        new ErrorResponse("Role is required. Available roles: MANAGER, CUSTOMER, SUPERVISOR, TECHNICIAN")
-                );
-            }
+            User savedUser = userService.registerUser(request);
+            RegistrationResponse response = userMapper.toRegistrationResponse(savedUser);
 
-            User savedUser = userService.registerUser(user);
-            System.out.println("User registered successfully: " + savedUser.getUsername());
+            return ResponseEntity.ok(response);
 
-            return ResponseEntity.ok(
-                    new RegistrationResponse("User registered successfully",
-                            savedUser.getUsername(),
-                            savedUser.getEmail(),
-                            savedUser.getRole().name(),
-                            savedUser.getFirstName(),
-                            savedUser.getLastName())
-            );
-        } catch (RuntimeException e) {
-            System.out.println("Registration failed: " + e.getMessage());
-            return ResponseEntity.badRequest().body(
-                    new ErrorResponse("Registration failed: " + e.getMessage())
-            );
+        } catch (IllegalArgumentException e) {
+            log.warn("Registration failed: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(new ErrorResponse(e.getMessage()));
+
         } catch (Exception e) {
-            System.out.println("Internal server error: " + e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
-                    new ErrorResponse("Internal server error: " + e.getMessage())
-            );
+            log.error("Unexpected error during registration", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ErrorResponse("Internal server error: " + e.getMessage()));
         }
     }
 
     @PostMapping("/login")
-    public ResponseEntity<?> loginUser(@RequestBody LoginRequest loginRequest) {
+    public ResponseEntity<?> loginUser(@Valid @RequestBody LoginRequest request) {
         try {
-            System.out.println("Received login request for email: " + loginRequest.getEmail());
+            log.info("Login request received for: {}", request.getEmail());
 
-            // Basic validation
-            if (loginRequest.getEmail() == null || loginRequest.getEmail().trim().isEmpty() ||
-                    loginRequest.getPassword() == null || loginRequest.getPassword().trim().isEmpty()) {
-                return ResponseEntity.badRequest().body(
-                        new ErrorResponse("Email and password are required")
-                );
-            }
+            authenticateUser(request.getEmail(), request.getPassword());
 
-            // Authenticate user using email
-            try {
-                authenticationManager.authenticate(
-                        new UsernamePasswordAuthenticationToken(loginRequest.getEmail(), loginRequest.getPassword())
-                );
-            } catch (BadCredentialsException e) {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
-                        new ErrorResponse("Invalid email or password")
-                );
-            }
+            UserDetails userDetails = userDetailsService.loadUserByUsername(request.getEmail());
+            String jwt = jwtUtil.generateToken(userDetails);
 
-            // Load user details and generate token
-            final UserDetails userDetails = userDetailsService.loadUserByUsername(loginRequest.getEmail());
-            final String jwt = jwtUtil.generateToken(userDetails);
+            User user = userService.findByEmail(request.getEmail());
+            LoginResponse response = userMapper.toLoginResponse(user, jwt);
 
-            // Find user for additional details
-            User user = userService.findByEmail(loginRequest.getEmail());
+            log.info("Login successful for: {}", user.getEmail());
+            return ResponseEntity.ok(response);
 
-            System.out.println("Login successful for: " + user.getEmail() + " with role: " + user.getRole());
-            return ResponseEntity.ok(new LoginResponse(
-                    "Login successful",
-                    user.getUsername(),
-                    user.getEmail(),
-                    user.getRole().name(),
-                    user.getFirstName(),
-                    user.getLastName(),
-                    user.getPhoneNumber(),
-                    jwt
-            ));
+        } catch (BadCredentialsException e) {
+            log.warn("Invalid credentials for: {}", request.getEmail());
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(new ErrorResponse("Invalid email or password"));
 
         } catch (Exception e) {
-            System.out.println("Login error: " + e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
-                    new ErrorResponse("Login error: " + e.getMessage())
-            );
+            log.error("Login error for: {}", request.getEmail(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ErrorResponse("Login error: " + e.getMessage()));
         }
     }
 
-    // Request DTO for Login - Changed from username to email
-    public static class LoginRequest {
-        private String email;
-        private String password;
-
-        // Getters and setters
-        public String getEmail() { return email; }
-        public void setEmail(String email) { this.email = email; }
-        public String getPassword() { return password; }
-        public void setPassword(String password) { this.password = password; }
-    }
-
-    // Response DTOs
-    public static class RegistrationResponse {
-        private String message;
-        private String username;
-        private String email;
-        private String role;
-        private String firstName;
-        private String lastName;
-
-        public RegistrationResponse(String message, String username, String email, String role, String firstName, String lastName) {
-            this.message = message;
-            this.username = username;
-            this.email = email;
-            this.role = role;
-            this.firstName = firstName;
-            this.lastName = lastName;
-        }
-
-        // Getters and setters
-        public String getMessage() { return message; }
-        public void setMessage(String message) { this.message = message; }
-        public String getUsername() { return username; }
-        public void setUsername(String username) { this.username = username; }
-        public String getEmail() { return email; }
-        public void setEmail(String email) { this.email = email; }
-        public String getRole() { return role; }
-        public void setRole(String role) { this.role = role; }
-        public String getFirstName() { return firstName; }
-        public void setFirstName(String firstName) { this.firstName = firstName; }
-        public String getLastName() { return lastName; }
-        public void setLastName(String lastName) { this.lastName = lastName; }
-    }
-
-    public static class LoginResponse {
-        private String message;
-        private String username;
-        private String email;
-        private String role;
-        private String firstName;
-        private String lastName;
-        private String phoneNumber;
-        private String token;
-        private String tokenType = "Bearer";
-
-        public LoginResponse(String message, String username, String email, String role, String firstName, String lastName, String phoneNumber, String token) {
-            this.message = message;
-            this.username = username;
-            this.email = email;
-            this.role = role;
-            this.firstName = firstName;
-            this.lastName = lastName;
-            this.phoneNumber = phoneNumber;
-            this.token = token;
-        }
-
-        // Getters and setters
-        public String getMessage() { return message; }
-        public void setMessage(String message) { this.message = message; }
-        public String getUsername() { return username; }
-        public void setUsername(String username) { this.username = username; }
-        public String getEmail() { return email; }
-        public void setEmail(String email) { this.email = email; }
-        public String getRole() { return role; }
-        public void setRole(String role) { this.role = role; }
-        public String getFirstName() { return firstName; }
-        public void setFirstName(String firstName) { this.firstName = firstName; }
-        public String getLastName() { return lastName; }
-        public void setLastName(String lastName) { this.lastName = lastName; }
-        public String getPhoneNumber() { return phoneNumber; }
-        public void setPhoneNumber(String phoneNumber) { this.phoneNumber = phoneNumber; }
-        public String getToken() { return token; }
-        public void setToken(String token) { this.token = token; }
-        public String getTokenType() { return tokenType; }
-        public void setTokenType(String tokenType) { this.tokenType = tokenType; }
-    }
-
-    public static class ErrorResponse {
-        private String error;
-
-        public ErrorResponse(String error) {
-            this.error = error;
-        }
-
-        public String getError() { return error; }
-        public void setError(String error) { this.error = error; }
+    private void authenticateUser(String email, String password) {
+        authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(email, password)
+        );
     }
 }

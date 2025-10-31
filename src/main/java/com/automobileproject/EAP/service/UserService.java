@@ -1,46 +1,47 @@
 package com.automobileproject.EAP.service;
 
+import com.automobileproject.EAP.dto.RegistrationRequest;
+import com.automobileproject.EAP.mapper.UserMapper;
 import com.automobileproject.EAP.model.User;
 import com.automobileproject.EAP.repository.UserRepository;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
-import org.springframework.util.StringUtils;
+import org.springframework.transaction.annotation.Transactional;
 
 @Service
+@RequiredArgsConstructor
+@Slf4j
 public class UserService {
 
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
+    private final UserMapper userMapper;
 
-    public UserService(UserRepository userRepository, PasswordEncoder passwordEncoder) {
-        this.userRepository = userRepository;
-        this.passwordEncoder = passwordEncoder;
+    @Transactional
+    public User registerUser(RegistrationRequest request) {
+        log.info("Attempting to register user with email: {}", request.getEmail());
+
+        validateUniqueConstraints(request);
+
+        User user = userMapper.toEntity(request);
+        user.setPassword(passwordEncoder.encode(request.getPassword()));
+
+        User savedUser = userRepository.save(user);
+        log.info("User registered successfully with ID: {}", savedUser.getId());
+
+        return savedUser;
     }
 
-    public User registerUser(User user) {
-        // Validate input
-        if (user == null || !StringUtils.hasText(user.getUsername()) ||
-                !StringUtils.hasText(user.getPassword()) || !StringUtils.hasText(user.getEmail()) ||
-                user.getRole() == null || !StringUtils.hasText(user.getPhoneNumber()) ||
-                !StringUtils.hasText(user.getFirstName()) || !StringUtils.hasText(user.getLastName())) {
-            throw new RuntimeException("All fields are required: username, password, email, role, phoneNumber, firstName, lastName");
+    private void validateUniqueConstraints(RegistrationRequest request) {
+        if (userRepository.findByUsername(request.getUsername()) != null) {
+            throw new IllegalArgumentException("Username already exists");
         }
 
-        // Check if username already exists
-        User existingUserByUsername = userRepository.findByUsername(user.getUsername());
-        if (existingUserByUsername != null) {
-            throw new RuntimeException("Username already exists");
+        if (userRepository.findByEmail(request.getEmail()) != null) {
+            throw new IllegalArgumentException("Email already exists");
         }
-
-        // Check if email already exists
-        User existingUserByEmail = userRepository.findByEmail(user.getEmail());
-        if (existingUserByEmail != null) {
-            throw new RuntimeException("Email already exists");
-        }
-
-        // Encode password before saving
-        user.setPassword(passwordEncoder.encode(user.getPassword()));
-        return userRepository.save(user);
     }
 
     public User findByUsername(String username) {
