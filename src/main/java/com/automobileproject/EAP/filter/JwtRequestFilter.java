@@ -36,24 +36,24 @@ public class JwtRequestFilter extends OncePerRequestFilter {
 
         final String authorizationHeader = request.getHeader("Authorization");
 
-        String username = null;
+        String email = null;
         String jwt = null;
 
         if (authorizationHeader != null && authorizationHeader.startsWith("Bearer ")) {
             jwt = authorizationHeader.substring(7);
             try {
-                username = jwtUtil.extractUsername(jwt);
-                logger.info("Extracted username from JWT: {}", username);
+                email = jwtUtil.extractUsername(jwt); // This now extracts email
+                logger.info("Extracted email from JWT: {}", email);
             } catch (Exception e) {
-                logger.warn("Failed to extract username from JWT: {}", e.getMessage());
+                logger.warn("Failed to extract email from JWT: {}", e.getMessage());
                 // Continue with the filter chain without setting authentication
                 // This will result in 401 if the endpoint requires authentication
             }
         }
 
-        if (username != null && SecurityContextHolder.getContext().getAuthentication() == null) {
+        if (email != null && SecurityContextHolder.getContext().getAuthentication() == null) {
             try {
-                UserDetails userDetails = this.userDetailsService.loadUserByUsername(username);
+                UserDetails userDetails = this.userDetailsService.loadUserByUsername(email);
 
                 if (jwtUtil.validateToken(jwt, userDetails)) {
                     UsernamePasswordAuthenticationToken usernamePasswordAuthenticationToken =
@@ -61,12 +61,12 @@ public class JwtRequestFilter extends OncePerRequestFilter {
                     usernamePasswordAuthenticationToken
                             .setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                     SecurityContextHolder.getContext().setAuthentication(usernamePasswordAuthenticationToken);
-                    logger.info("JWT authentication successful for user: {}", username);
+                    logger.info("JWT authentication successful for user: {}", email);
                 } else {
-                    logger.warn("JWT token validation failed for user: {}", username);
+                    logger.warn("JWT token validation failed for user: {}", email);
                 }
             } catch (UsernameNotFoundException e) {
-                logger.warn("User not found: {}", username);
+                logger.warn("User not found with email: {}", email);
             } catch (Exception e) {
                 logger.error("Error during JWT authentication: {}", e.getMessage());
             }

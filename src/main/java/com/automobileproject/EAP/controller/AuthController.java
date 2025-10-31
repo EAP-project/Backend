@@ -75,35 +75,35 @@ public class AuthController {
     @PostMapping("/login")
     public ResponseEntity<?> loginUser(@RequestBody LoginRequest loginRequest) {
         try {
-            System.out.println("Received login request for: " + loginRequest.getUsername());
+            System.out.println("Received login request for email: " + loginRequest.getEmail());
 
             // Basic validation
-            if (loginRequest.getUsername() == null || loginRequest.getUsername().trim().isEmpty() ||
+            if (loginRequest.getEmail() == null || loginRequest.getEmail().trim().isEmpty() ||
                     loginRequest.getPassword() == null || loginRequest.getPassword().trim().isEmpty()) {
                 return ResponseEntity.badRequest().body(
-                        new ErrorResponse("Username and password are required")
+                        new ErrorResponse("Email and password are required")
                 );
             }
 
-            // Authenticate user
+            // Authenticate user using email
             try {
                 authenticationManager.authenticate(
-                        new UsernamePasswordAuthenticationToken(loginRequest.getUsername(), loginRequest.getPassword())
+                        new UsernamePasswordAuthenticationToken(loginRequest.getEmail(), loginRequest.getPassword())
                 );
             } catch (BadCredentialsException e) {
                 return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
-                        new ErrorResponse("Invalid username or password")
+                        new ErrorResponse("Invalid email or password")
                 );
             }
 
             // Load user details and generate token
-            final UserDetails userDetails = userDetailsService.loadUserByUsername(loginRequest.getUsername());
+            final UserDetails userDetails = userDetailsService.loadUserByUsername(loginRequest.getEmail());
             final String jwt = jwtUtil.generateToken(userDetails);
 
             // Find user for additional details
-            User user = userService.findByUsername(loginRequest.getUsername());
+            User user = userService.findByEmail(loginRequest.getEmail());
 
-            System.out.println("Login successful for: " + user.getUsername() + " with role: " + user.getRole());
+            System.out.println("Login successful for: " + user.getEmail() + " with role: " + user.getRole());
             return ResponseEntity.ok(new LoginResponse(
                     "Login successful",
                     user.getUsername(),
@@ -123,14 +123,14 @@ public class AuthController {
         }
     }
 
-    // Request DTO for Login
+    // Request DTO for Login - Changed from username to email
     public static class LoginRequest {
-        private String username;
+        private String email;
         private String password;
 
         // Getters and setters
-        public String getUsername() { return username; }
-        public void setUsername(String username) { this.username = username; }
+        public String getEmail() { return email; }
+        public void setEmail(String email) { this.email = email; }
         public String getPassword() { return password; }
         public void setPassword(String password) { this.password = password; }
     }

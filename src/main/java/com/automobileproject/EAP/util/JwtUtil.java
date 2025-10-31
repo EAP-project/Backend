@@ -45,6 +45,7 @@ public class JwtUtil {
     }
 
     public String extractUsername(String token) {
+        // This now extracts the email (which is stored as the subject)
         return extractClaim(token, Claims::getSubject);
     }
 
@@ -91,6 +92,7 @@ public class JwtUtil {
 
     public String generateToken(UserDetails userDetails) {
         Map<String, Object> claims = new HashMap<>();
+        // The subject is now the email (userDetails.getUsername() returns email)
         return createToken(claims, userDetails.getUsername());
     }
 
@@ -98,7 +100,7 @@ public class JwtUtil {
         try {
             String token = Jwts.builder()
                     .setClaims(claims)
-                    .setSubject(subject)
+                    .setSubject(subject) // This is now the email
                     .setIssuedAt(new Date(System.currentTimeMillis()))
                     .setExpiration(new Date(System.currentTimeMillis() + expiration))
                     .signWith(getSigningKey(), SignatureAlgorithm.HS256)
@@ -114,10 +116,10 @@ public class JwtUtil {
 
     public Boolean validateToken(String token, UserDetails userDetails) {
         try {
-            final String username = extractUsername(token);
-            boolean isValid = username.equals(userDetails.getUsername()) && !isTokenExpired(token);
+            final String email = extractUsername(token); // This now extracts email
+            boolean isValid = email.equals(userDetails.getUsername()) && !isTokenExpired(token);
             if (!isValid) {
-                logger.warn("JWT token validation failed for user: {}", username);
+                logger.warn("JWT token validation failed for user: {}", email);
             }
             return isValid;
         } catch (Exception e) {
