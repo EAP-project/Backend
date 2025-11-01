@@ -1,33 +1,21 @@
-package com.automobileproject.EAP.model;
+package com.automobileproject.EAP.dto;
 
-import jakarta.persistence.*;
+import com.automobileproject.EAP.model.User;
 import jakarta.validation.constraints.Email;
 import jakarta.validation.constraints.NotBlank;
+import jakarta.validation.constraints.NotNull;
 import jakarta.validation.constraints.Pattern;
 import jakarta.validation.constraints.Size;
 import lombok.AllArgsConstructor;
-import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-@Entity
-@Table(name = "users")
 @Data
 @NoArgsConstructor
 @AllArgsConstructor
-@Builder
-public class User {
-
-    public enum Role {
-        MANAGER, CUSTOMER, SUPERVISOR, TECHNICIAN
-    }
-
-    @Id
-    @GeneratedValue(strategy = GenerationType.IDENTITY)
-    private Long id;
+public class RegistrationRequest {
 
     @NotBlank(message = "Username is required")
-    @Column(unique = true)
     @Size(min = 3, max = 50, message = "Username must be between 3 and 50 characters")
     private String username;
 
@@ -37,12 +25,10 @@ public class User {
 
     @NotBlank(message = "Email is required")
     @Email(message = "Email should be valid")
-    @Column(unique = true)
     private String email;
 
-    @Enumerated(EnumType.STRING)
-    @Column(nullable = false)
-    private Role role;
+    @NotNull(message = "Role is required")
+    private User.Role role;
 
     @NotBlank(message = "Phone number is required")
     @Pattern(regexp = "\\d{10,15}", message = "Phone number must be between 10 and 15 digits")
