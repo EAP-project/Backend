@@ -19,7 +19,7 @@ import lombok.NoArgsConstructor;
 public class User {
 
     public enum Role {
-        EMPLOYER, CUSTOMER
+        EMPLOYEE, CUSTOMER
     }
 
     @Id

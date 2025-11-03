@@ -46,6 +46,10 @@ public class JwtUtil {
         return extractClaim(token, Claims::getExpiration);
     }
 
+    public String extractRole(String token) {
+        return extractClaim(token, claims -> claims.get("role", String.class));
+    }
+
     public <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
         Claims claims = extractAllClaims(token);
         return claimsResolver.apply(claims);
@@ -84,6 +88,25 @@ public class JwtUtil {
 
     public String generateToken(UserDetails userDetails) {
         Map<String, Object> claims = new HashMap<>();
+        
+        log.info("Generating token for user: {}", userDetails.getUsername());
+        log.info("User authorities: {}", userDetails.getAuthorities());
+        
+        // Extract role from authorities
+        userDetails.getAuthorities().stream()
+                .findFirst()
+                .ifPresent(authority -> {
+                    String role = authority.getAuthority();
+                    log.info("Found authority: {}", role);
+                    // Remove "ROLE_" prefix if present
+                    if (role.startsWith("ROLE_")) {
+                        role = role.substring(5);
+                    }
+                    claims.put("role", role);
+                    log.info("Added role to JWT claims: {}", role);
+                });
+        
+        log.info("Final claims map: {}", claims);
         return createToken(claims, userDetails.getUsername());
     }
 
