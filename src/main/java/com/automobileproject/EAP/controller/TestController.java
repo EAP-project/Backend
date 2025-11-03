@@ -10,6 +10,12 @@ import org.springframework.web.bind.annotation.RestController;
 @RequestMapping("/api")
 public class TestController {
 
+    @GetMapping("/admin")
+    @PreAuthorize("hasRole('ADMIN')")
+    public String adminOnly(Authentication authentication) {
+        return "Hello, " + authentication.getName() + "! This is an admin-only endpoint.";
+    }
+
     @GetMapping("/customer")
     @PreAuthorize("hasRole('CUSTOMER')")
     public String customerOnly(Authentication authentication) {
