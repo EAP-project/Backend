@@ -9,6 +9,8 @@ import jakarta.servlet.http.HttpServletResponse;
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
+import org.springframework.security.core.GrantedAuthority;
+import org.springframework.security.core.authority.SimpleGrantedAuthority;
 import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
@@ -18,6 +20,8 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
+import java.util.ArrayList;
+import java.util.List;
 
 @Component
 @RequiredArgsConstructor
@@ -61,13 +65,22 @@ public class JwtRequestFilter extends OncePerRequestFilter {
             UserDetails userDetails = userDetailsService.loadUserByUsername(email);
 
             if (jwtUtil.validateToken(jwt, userDetails)) {
+                // Extract role from JWT and create authorities
+                String role = jwtUtil.extractRole(jwt);
+                List<GrantedAuthority> authorities = new ArrayList<>();
+                
+                if (role != null && !role.isEmpty()) {
+                    authorities.add(new SimpleGrantedAuthority("ROLE_" + role));
+                    log.debug("Added role to authorities: ROLE_{}", role);
+                }
+                
                 UsernamePasswordAuthenticationToken authentication =
-                        new UsernamePasswordAuthenticationToken(userDetails, null, userDetails.getAuthorities());
+                        new UsernamePasswordAuthenticationToken(userDetails, null, authorities);
 
                 authentication.setDetails(new WebAuthenticationDetailsSource().buildDetails(request));
                 SecurityContextHolder.getContext().setAuthentication(authentication);
 
-                log.debug("JWT authentication successful for user: {}", email);
+                log.debug("JWT authentication successful for user: {} with role: {}", email, role);
             } else {
                 log.warn("JWT token validation failed");
             }
