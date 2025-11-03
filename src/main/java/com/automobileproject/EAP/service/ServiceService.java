@@ -5,11 +5,10 @@ import com.automobileproject.EAP.model.Service;
 import com.automobileproject.EAP.repository.ServiceRepository;
 import jakarta.persistence.EntityNotFoundException;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.stereotype.Service;
 
 import java.util.List;
 
-@Service
+@org.springframework.stereotype.Service
 public class ServiceService {
 
     @Autowired
