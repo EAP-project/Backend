@@ -6,7 +6,6 @@ import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
 
-// This DTO is used for creating and updating a service
 @Data
 @NoArgsConstructor
 @AllArgsConstructor

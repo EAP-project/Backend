@@ -15,7 +15,9 @@ public class ServiceService {
     @Autowired
     private ServiceRepository serviceRepository;
 
-    // CREATE
+    /**
+     * Creates a new service. (Called by ADMIN)
+     */
     public Service createService(ServiceDTO serviceDTO) {
         Service service = new Service();
         service.setName(serviceDTO.getName());
@@ -26,37 +28,28 @@ public class ServiceService {
         return serviceRepository.save(service);
     }
 
-    // READ (Get one by ID)
-    public Service getServiceById(Long id) {
-        return serviceRepository.findById(id)
-                .orElseThrow(() -> new EntityNotFoundException("Service not found with id: " + id));
-    }
-
-    // READ (Get all)
-    public List<Service> getAllServices() {
-        return serviceRepository.findAll();
-    }
-
-    // UPDATE
-    public Service updateService(Long id, ServiceDTO serviceDTO) {
-        // First, check if the service exists
-        Service existingService = getServiceById(id);
-
-        // Update the fields
-        existingService.setName(serviceDTO.getName());
-        existingService.setDescription(serviceDTO.getDescription());
-        existingService.setEstimatedCost(serviceDTO.getEstimatedCost());
-        existingService.setEstimatedDurationMinutes(serviceDTO.getEstimatedDurationMinutes());
-
-        return serviceRepository.save(existingService);
-    }
-
-    // DELETE
+    /**
+     * Deletes a service. (Called by ADMIN)
+     */
     public void deleteService(Long id) {
-        // Check if the service exists before deleting
         if (!serviceRepository.existsById(id)) {
             throw new EntityNotFoundException("Service not found with id: " + id);
         }
         serviceRepository.deleteById(id);
+    }
+
+    /**
+     * Gets a list of all services. (Called by CUSTOMER)
+     */
+    public List<Service> getAllServices() {
+        return serviceRepository.findAll();
+    }
+
+    /**
+     * Gets one service by its ID. (Called by CUSTOMER)
+     */
+    public Service getServiceById(Long id) {
+        return serviceRepository.findById(id)
+                .orElseThrow(() -> new EntityNotFoundException("Service not found with id: " + id));
     }
 }
