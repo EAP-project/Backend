@@ -4,6 +4,7 @@ import com.automobileproject.EAP.dto.RegistrationRequest;
 import com.automobileproject.EAP.mapper.UserMapper;
 import com.automobileproject.EAP.model.User;
 import com.automobileproject.EAP.repository.UserRepository;
+import jakarta.persistence.EntityNotFoundException; // <-- Make sure this is imported
 import lombok.RequiredArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
@@ -35,20 +36,26 @@ public class UserService {
     }
 
     private void validateUniqueConstraints(RegistrationRequest request) {
-        if (userRepository.findByUsername(request.getUsername()) != null) {
+        // --- FIX 1: Use .isPresent() instead of != null ---
+        if (userRepository.findByUsername(request.getUsername()).isPresent()) {
             throw new IllegalArgumentException("Username already exists");
         }
 
-        if (userRepository.findByEmail(request.getEmail()) != null) {
+        // --- FIX 2: Use .isPresent() instead of != null ---
+        if (userRepository.findByEmail(request.getEmail()).isPresent()) {
             throw new IllegalArgumentException("Email already exists");
         }
     }
 
     public User findByUsername(String username) {
-        return userRepository.findByUsername(username);
+        // --- FIX 3: Unwrap the Optional or throw an exception ---
+        return userRepository.findByUsername(username)
+                .orElseThrow(() -> new EntityNotFoundException("User not found with username: " + username));
     }
 
     public User findByEmail(String email) {
-        return userRepository.findByEmail(email);
+        // --- FIX 4: Unwrap the Optional or throw an exception ---
+        return userRepository.findByEmail(email)
+                .orElseThrow(() -> new EntityNotFoundException("User not found with email: " + email));
     }
 }

@@ -23,15 +23,19 @@ public class MyUserDetailsService implements UserDetailsService {
     public UserDetails loadUserByUsername(String email) throws UsernameNotFoundException {
         log.debug("Loading user by email: {}", email);
 
-        User user = userRepository.findByEmail(email);
+        // --- THIS IS THE FIX ---
+        // We use .orElseThrow() to get the User from the Optional
+        // or throw the exception if the Optional is empty.
+        User user = userRepository.findByEmail(email)
+                .orElseThrow(() -> {
+                    log.warn("User not found with email: {}", email);
+                    return new UsernameNotFoundException("User not found with email: " + email);
+                });
+        // -------------------------
 
-        if (user == null) {
-            log.warn("User not found with email: {}", email);
-            throw new UsernameNotFoundException("User not found with email: " + email);
-        }
-
+        // This code now runs only if the user was found
         return org.springframework.security.core.userdetails.User.builder()
-                .username(user.getEmail())
+                .username(user.getEmail()) // Use email as the username for Spring Security
                 .password(user.getPassword())
                 .authorities(Collections.singletonList(
                         new SimpleGrantedAuthority("ROLE_" + user.getRole().name())
