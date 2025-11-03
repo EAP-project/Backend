@@ -1,0 +1,17 @@
+package com.automobileproject.EAP.repository;
+
+import com.automobileproject.EAP.model.Appointment;
+import org.springframework.data.jpa.repository.JpaRepository;
+import org.springframework.stereotype.Repository;
+
+import java.util.List;
+
+@Repository
+public interface AppointmentRepository extends JpaRepository<Appointment, Long> {
+
+    /**
+     * Checks if a vehicle has any appointments that mean it is
+     * physically in the garage (e.g., IN_PROGRESS or AWAITING_PARTS).
+     */
+    boolean existsByVehicleIdAndStatusIn(Long vehicleId, List<Appointment.AppointmentStatus> statuses);
+}
