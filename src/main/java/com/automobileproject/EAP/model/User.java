@@ -55,4 +55,12 @@ public class User {
     @NotBlank(message = "Last name is required")
     @Size(max = 50, message = "Last name must not exceed 50 characters")
     private String lastName;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private Boolean emailVerified = false;
+
+    @Column(nullable = false)
+    @Builder.Default
+    private Boolean enabled = false;
 }

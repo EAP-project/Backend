@@ -9,6 +9,7 @@ import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
+import com.automobileproject.EAP.service.EmailVerificationService;
 
 @Service
 @RequiredArgsConstructor
@@ -18,6 +19,7 @@ public class UserService {
     private final UserRepository userRepository;
     private final PasswordEncoder passwordEncoder;
     private final UserMapper userMapper;
+    private final EmailVerificationService emailVerificationService;
 
     @Transactional
     public User registerUser(RegistrationRequest request) {
@@ -27,9 +29,13 @@ public class UserService {
 
         User user = userMapper.toEntity(request);
         user.setPassword(passwordEncoder.encode(request.getPassword()));
+        user.setEmailVerified(false);   //  ADD THIS
+        user.setEnabled(false);         //  ADD THIS
 
         User savedUser = userRepository.save(user);
         log.info("User registered successfully with ID: {}", savedUser.getId());
+        // ⭐ ADD THIS - Create and send verification token
+        emailVerificationService.createVerificationToken(savedUser);
 
         return savedUser;
     }

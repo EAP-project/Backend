@@ -29,6 +29,17 @@ public class MyUserDetailsService implements UserDetailsService {
             log.warn("User not found with email: {}", email);
             throw new UsernameNotFoundException("User not found with email: " + email);
         }
+        // ADD THESE CHECKS
+        if (!user.getEmailVerified()) {
+            log.warn("User email not verified: {}", email);
+            throw new RuntimeException("Email not verified. Please verify your email before logging in.");
+        }
+
+        if (!user.getEnabled()) {
+            log.warn("User account is disabled: {}", email);
+            throw new RuntimeException("Account is disabled");
+        }
+//
 
         return org.springframework.security.core.userdetails.User.builder()
                 .username(user.getEmail())
@@ -36,6 +47,11 @@ public class MyUserDetailsService implements UserDetailsService {
                 .authorities(Collections.singletonList(
                         new SimpleGrantedAuthority("ROLE_" + user.getRole().name())
                 ))
+                .accountExpired(false)      // ⭐ ADD THIS
+                .accountLocked(false)       // ⭐ ADD THIS
+                .credentialsExpired(false)  // ⭐ ADD THIS
+                .disabled(!user.getEnabled()) // ⭐ ADD THIS
+
                 .build();
     }
 }
