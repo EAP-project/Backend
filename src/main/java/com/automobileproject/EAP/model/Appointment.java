@@ -25,7 +25,7 @@ public class Appointment {
     private Long id;
 
     // Optional for modification requests, required for standard services
-    @Future(message = "Appointment must be in the future")
+    // Note: @Future validation is handled at DTO level, not entity level
     private OffsetDateTime appointmentDateTime;
 
     @Enumerated(EnumType.STRING)
@@ -56,7 +56,7 @@ public class Appointment {
 
     // Optional for modification requests
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "service_id")
+    @JoinColumn(name = "service_id",nullable = true)
     @JsonIgnore
     private Service service;
 

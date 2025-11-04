@@ -14,4 +14,9 @@ public interface AppointmentRepository extends JpaRepository<Appointment, Long> 
      * physically in the garage (e.g., IN_PROGRESS or AWAITING_PARTS).
      */
     boolean existsByVehicleIdAndStatusIn(Long vehicleId, List<Appointment.AppointmentStatus> statuses);
+
+    /**
+     * Find all appointments with a specific status.
+     */
+    List<Appointment> findByStatus(Appointment.AppointmentStatus status);
 }
