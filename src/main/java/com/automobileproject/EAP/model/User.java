@@ -64,6 +64,8 @@ public class User {
     // Token for email verification - ADDED FOR EMAIL VERIFICATION
     private String verificationToken;
 
+    // User enabled status - ADDED FOR SPRING SECURITY COMPATIBILITY
+
 
     // Password reset token - ADDED FOR FORGOT PASSWORD FEATURE
     private String passwordResetToken;
