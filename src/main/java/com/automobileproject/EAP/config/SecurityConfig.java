@@ -30,7 +30,8 @@ public class SecurityConfig {
         http
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(authz -> authz
-                        .requestMatchers("/api/register", "/api/login").permitAll()
+                        // Public endpoints - MODIFIED FOR EMAIL VERIFICATION AND FORGOT PASSWORD
+                        .requestMatchers("/api/register", "/api/login", "/api/verify-email", "/api/forgot-password", "/api/reset-password").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/customer/**").hasRole("CUSTOMER")
                         .requestMatchers("/api/employee/**").hasRole("EMPLOYEE")

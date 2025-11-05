@@ -55,4 +55,21 @@ public class User {
     @NotBlank(message = "Last name is required")
     @Size(max = 50, message = "Last name must not exceed 50 characters")
     private String lastName;
+
+    // Email verification fields - ADDED FOR EMAIL VERIFICATION
+    @Column(nullable = false)
+    @Builder.Default
+    private Boolean emailVerified = false;
+
+    // Token for email verification - ADDED FOR EMAIL VERIFICATION
+    private String verificationToken;
+
+    // User enabled status - ADDED FOR SPRING SECURITY COMPATIBILITY
+
+
+    // Password reset token - ADDED FOR FORGOT PASSWORD FEATURE
+    private String passwordResetToken;
+
+    // Password reset token expiry - ADDED FOR FORGOT PASSWORD FEATURE
+    private java.time.LocalDateTime passwordResetTokenExpiry;
 }
