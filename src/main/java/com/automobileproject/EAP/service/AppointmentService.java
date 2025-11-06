@@ -4,9 +4,11 @@ import com.automobileproject.EAP.dto.AppointmentRequestDTO;
 import com.automobileproject.EAP.dto.AssignEmployeeDTO;
 import com.automobileproject.EAP.dto.ModificationRequestDTO;
 import com.automobileproject.EAP.dto.QuoteRequestDTO;
+import com.automobileproject.EAP.dto.SlotBasedAppointmentRequestDTO;
 import com.automobileproject.EAP.dto.UpdateNotesDTO;
 import com.automobileproject.EAP.dto.UpdateStatusDTO;
 import com.automobileproject.EAP.model.Appointment;
+import com.automobileproject.EAP.model.AppointmentSlot;
 import com.automobileproject.EAP.model.User;
 import com.automobileproject.EAP.model.Vehicle;
 import com.automobileproject.EAP.repository.AppointmentRepository;
@@ -20,6 +22,8 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.OffsetDateTime;
+import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.List;
 
@@ -31,6 +35,7 @@ public class AppointmentService {
     private final UserRepository userRepository;
     private final VehicleRepository vehicleRepository;
     private final ServiceRepository serviceRepository;
+    private final AppointmentSlotService appointmentSlotService;
 
     // Define which statuses mean a car is "In the Garage"
     private static final List<Appointment.AppointmentStatus> ACTIVE_STATUSES = Arrays.asList(
@@ -66,6 +71,8 @@ public class AppointmentService {
         }
 
         // 5. Build the new appointment
+        // NOTE: This method uses appointmentDateTime directly from DTO
+        // For slot-based booking, use createSlotBasedAppointment() instead
         Appointment appointment = Appointment.builder()
                 .vehicle(vehicle)
                 .service(service)
@@ -73,6 +80,7 @@ public class AppointmentService {
                 .customerNotes(dto.getCustomerNotes())
                 .appointmentType(Appointment.AppointmentType.STANDARD_SERVICE)
                 .status(Appointment.AppointmentStatus.SCHEDULED)
+                // appointmentSlot is NULL for old-style bookings
                 .build();
 
         // 6. Save and return
@@ -213,6 +221,76 @@ public class AppointmentService {
 
         // Add employee to assigned employees set (Set automatically handles duplicates)
         appointment.getAssignedEmployees().add(employee);
+
+        return appointmentRepository.save(appointment);
+    }
+
+    /**
+     * NEW: Create a standard appointment with slot-based booking.
+     * This is the recommended method for the new slot system.
+     */
+    @Transactional
+    public Appointment createSlotBasedAppointment(SlotBasedAppointmentRequestDTO dto, String customerEmail) {
+
+        // 1. Find the logged-in customer
+        User customer = userRepository.findByEmail(customerEmail)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found: " + customerEmail));
+
+        // 2. Find the vehicle and service from the request
+        Vehicle vehicle = vehicleRepository.findById(dto.getVehicleId())
+                .orElseThrow(() -> new EntityNotFoundException("Vehicle not found"));
+
+        com.automobileproject.EAP.model.Service service = serviceRepository.findById(dto.getServiceId())
+                .orElseThrow(() -> new EntityNotFoundException("Service not found"));
+
+        // 3. Security check - ensure the vehicle belongs to the customer
+        if (!vehicle.getOwner().getId().equals(customer.getId())) {
+            throw new AccessDeniedException("You do not have permission to book an appointment for this vehicle.");
+        }
+
+        // 4. Check if the vehicle is already in the garage
+        boolean isVehicleBusy = appointmentRepository.existsByVehicleIdAndStatusIn(vehicle.getId(), ACTIVE_STATUSES);
+        if (isVehicleBusy) {
+            throw new IllegalStateException("This vehicle is already in the garage for another service.");
+        }
+
+        // 5. Find the slot template
+        AppointmentSlot slot = appointmentSlotService.findSlotTemplate(
+                dto.getSessionPeriod(),
+                dto.getSlotNumber()
+        );
+
+        // 6. Check if the slot is available on the requested date
+        boolean isAvailable = appointmentSlotService.isSlotAvailable(
+                dto.getAppointmentDate(),
+                dto.getSessionPeriod(),
+                dto.getSlotNumber()
+        );
+
+        if (!isAvailable) {
+            throw new IllegalStateException(
+                    String.format("The requested slot (%s Slot %d) is already booked on %s. Please choose another slot.",
+                            dto.getSessionPeriod(), dto.getSlotNumber(), dto.getAppointmentDate())
+            );
+        }
+
+        // 7. Convert slot date + time to OffsetDateTime for appointmentDateTime
+        OffsetDateTime appointmentDateTime = OffsetDateTime.of(
+                dto.getAppointmentDate(),
+                slot.getStartTime(),
+                ZoneId.systemDefault().getRules().getOffset(dto.getAppointmentDate().atTime(slot.getStartTime()))
+        );
+
+        // 8. Build and save the new appointment
+        Appointment appointment = Appointment.builder()
+                .vehicle(vehicle)
+                .service(service)
+                .appointmentDateTime(appointmentDateTime)
+                .appointmentSlot(slot)
+                .customerNotes(dto.getCustomerNotes())
+                .appointmentType(Appointment.AppointmentType.STANDARD_SERVICE)
+                .status(Appointment.AppointmentStatus.SCHEDULED)
+                .build();
 
         return appointmentRepository.save(appointment);
     }

@@ -5,6 +5,7 @@ import com.automobileproject.EAP.dto.AssignEmployeeDTO;
 import com.automobileproject.EAP.dto.CreateTimeLogDTO;
 import com.automobileproject.EAP.dto.ModificationRequestDTO;
 import com.automobileproject.EAP.dto.QuoteRequestDTO;
+import com.automobileproject.EAP.dto.SlotBasedAppointmentRequestDTO;
 import com.automobileproject.EAP.dto.TimeLogDTO;
 import com.automobileproject.EAP.dto.UpdateNotesDTO;
 import com.automobileproject.EAP.dto.UpdateStatusDTO;
@@ -37,6 +38,21 @@ public class AppointmentController {
     ) {
         String customerEmail = authentication.getName();
         Appointment newAppointment = appointmentService.createStandardAppointment(request, customerEmail);
+        return new ResponseEntity<>(newAppointment, HttpStatus.CREATED);
+    }
+
+    /**
+     * NEW: Create a standard appointment with slot-based booking.
+     * This is the recommended endpoint for booking appointments with the new slot system.
+     */
+    @PostMapping("/slot-based-service")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public ResponseEntity<Appointment> createSlotBasedAppointment(
+            @Valid @RequestBody SlotBasedAppointmentRequestDTO request,
+            Authentication authentication
+    ) {
+        String customerEmail = authentication.getName();
+        Appointment newAppointment = appointmentService.createSlotBasedAppointment(request, customerEmail);
         return new ResponseEntity<>(newAppointment, HttpStatus.CREATED);
     }
 

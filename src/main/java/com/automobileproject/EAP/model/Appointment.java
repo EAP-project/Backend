@@ -26,6 +26,7 @@ public class Appointment {
 
     // Optional for modification requests, required for standard services
     // Note: @Future validation is handled at DTO level, not entity level
+    // For slot-based appointments: this will be set to slotDate + slot.startTime
     private OffsetDateTime appointmentDateTime;
 
     @Enumerated(EnumType.STRING)
@@ -59,6 +60,12 @@ public class Appointment {
     @JoinColumn(name = "service_id",nullable = true)
     @JsonIgnore
     private Service service;
+
+    // NEW: Reference to the booked slot
+    @OneToOne(fetch = FetchType.LAZY)
+    @JoinColumn(name = "slot_id", nullable = true)
+    @JsonIgnore
+    private AppointmentSlot appointmentSlot;
 
     @ManyToMany(fetch = FetchType.LAZY)
     @JoinTable(

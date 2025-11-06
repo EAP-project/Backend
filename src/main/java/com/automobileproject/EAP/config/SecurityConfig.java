@@ -31,6 +31,8 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(authz -> authz
                         .requestMatchers("/api/register", "/api/login").permitAll()
+                        // Allow public access to slot availability endpoints (for chatbot)
+                        .requestMatchers("/api/slots/available/**", "/api/slots/check-availability", "/api/slots/count").permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/customer/**").hasRole("CUSTOMER")
                         .requestMatchers("/api/employee/**").hasRole("EMPLOYEE")
