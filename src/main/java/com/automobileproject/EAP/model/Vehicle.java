@@ -7,7 +7,7 @@ import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
 import lombok.NoArgsConstructor;
-import com.fasterxml.jackson.annotation.JsonIgnore;
+import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 
 @Entity
 @Table(name = "vehicles")
@@ -32,8 +32,9 @@ public class Vehicle {
     private String licensePlate;
 
     // This relationship is the key
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "owner_id", nullable = false)
-    @JsonIgnore
+    @JsonIgnoreProperties({ "password", "verificationToken", "passwordResetToken", "passwordResetTokenExpiry",
+            "username" })
     private User owner;
 }
