@@ -1,5 +1,6 @@
 package com.automobileproject.EAP.controller;
 
+import com.automobileproject.EAP.dto.NotificationDTO;
 import com.automobileproject.EAP.model.Notification;
 import com.automobileproject.EAP.repository.UserRepository;
 import com.automobileproject.EAP.service.NotificationService;
@@ -18,11 +19,22 @@ public class NotificationController {
     private final UserRepository userRepository;
 
     @GetMapping
-    public Page<Notification> list(Authentication auth,
+    public Page<NotificationDTO> list(Authentication auth,
             @RequestParam(defaultValue = "0") int page,
             @RequestParam(defaultValue = "20") int size) {
         var user = userRepository.findByEmail(auth.getName()).orElseThrow();
-        return notificationService.getForUser(user.getId(), PageRequest.of(page, size));
+        Page<Notification> notifications = notificationService.getForUser(user.getId(), PageRequest.of(page, size));
+
+        return notifications.map(n -> NotificationDTO.builder()
+                .id(n.getId())
+                .type(n.getType() != null ? n.getType().name() : null)
+                .title(n.getTitle())
+                .message(n.getMessage())
+                .status(n.getStatus() != null ? n.getStatus().name() : null)
+                .createdAt(n.getCreatedAt())
+                .readAt(n.getReadAt())
+                .userId(user.getId())
+                .build());
     }
 
     @GetMapping("/unread-count")
