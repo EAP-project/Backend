@@ -21,6 +21,9 @@ public class EmailService {
     @Value("${app.base-url}")
     private String baseUrl;
 
+    @Value("${app.frontend-url}")
+    private String frontendUrl;
+
     // Send verification email to user - ADDED FOR EMAIL VERIFICATION
     public void sendVerificationEmail(String toEmail, String verificationToken) {
         try {
@@ -30,7 +33,7 @@ public class EmailService {
             message.setSubject("Email Verification - Automobile Service");
 
             // Construct verification link - ADDED FOR EMAIL VERIFICATION
-            String verificationLink = baseUrl + "/api/verify-email?token=" + verificationToken;
+            String verificationLink = frontendUrl + "/verify-email?token=" + verificationToken;
 
             message.setText("Dear User,\n\n" +
                     "Thank you for registering with our Automobile Service.\n\n" +
@@ -59,17 +62,15 @@ public class EmailService {
             message.setSubject("Password Reset Request - Automobile Service");
 
             // Construct password reset link - ADDED FOR FORGOT PASSWORD FEATURE
-            String resetLink = baseUrl + "/api/reset-password?token=" + resetToken;
+            String resetLink = frontendUrl + "/reset-password?token=" + resetToken;
 
             message.setText("Dear User,\n\n" +
                     "We received a request to reset your password for your Automobile Service account.\n\n" +
-                    "Your Password Reset Token:\n" +
-                    resetToken + "\n\n" +
-                    "To verify your token, click this link:\n" +
+                    "Please click the link below to reset your password:\n" +
                     resetLink + "\n\n" +
-                    "After verification, use the token above to reset your password through the mobile app or API.\n\n" +
-                    "This token will expire in 1 hour.\n\n" +
-                    "If you did not request a password reset, please ignore this email. Your password will remain unchanged.\n\n" +
+                    "This link will expire in 1 hour.\n\n" +
+                    "If you did not request a password reset, please ignore this email. Your password will remain unchanged.\n\n"
+                    +
                     "Best regards,\n" +
                     "Automobile Service Team");
 
