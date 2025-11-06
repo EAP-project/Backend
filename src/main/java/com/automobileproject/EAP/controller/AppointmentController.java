@@ -33,8 +33,7 @@ public class AppointmentController {
     @PreAuthorize("hasRole('CUSTOMER')")
     public ResponseEntity<Appointment> createStandardAppointment(
             @Valid @RequestBody AppointmentRequestDTO request,
-            Authentication authentication
-    ) {
+            Authentication authentication) {
         String customerEmail = authentication.getName();
         Appointment newAppointment = appointmentService.createStandardAppointment(request, customerEmail);
         return new ResponseEntity<>(newAppointment, HttpStatus.CREATED);
@@ -44,8 +43,7 @@ public class AppointmentController {
     @PreAuthorize("hasRole('CUSTOMER')")
     public ResponseEntity<Appointment> createModificationRequest(
             @Valid @RequestBody ModificationRequestDTO request,
-            Authentication authentication
-    ) {
+            Authentication authentication) {
         String customerEmail = authentication.getName();
         Appointment newAppointment = appointmentService.createModificationRequest(request, customerEmail);
         return new ResponseEntity<>(newAppointment, HttpStatus.CREATED);
@@ -54,8 +52,7 @@ public class AppointmentController {
     @GetMapping("/{id}/time-logs")
     @PreAuthorize("hasAnyRole('EMPLOYEE', 'ADMIN')")
     public ResponseEntity<List<TimeLogDTO>> getTimeLogs(
-            @PathVariable Long id
-    ) {
+            @PathVariable Long id) {
         List<TimeLogDTO> timeLogs = timeLogService.getTimeLogsByAppointmentId(id);
         return ResponseEntity.ok(timeLogs);
     }
@@ -65,8 +62,7 @@ public class AppointmentController {
     public ResponseEntity<TimeLogDTO> createTimeLog(
             @PathVariable Long id,
             @Valid @RequestBody CreateTimeLogDTO request,
-            Authentication authentication
-    ) {
+            Authentication authentication) {
         String employeeEmail = authentication.getName();
         TimeLogDTO newTimeLog = timeLogService.createTimeLog(id, request, employeeEmail);
         return new ResponseEntity<>(newTimeLog, HttpStatus.CREATED);
@@ -75,8 +71,7 @@ public class AppointmentController {
     @GetMapping
     @PreAuthorize("hasAnyRole('EMPLOYEE', 'ADMIN')")
     public ResponseEntity<List<Appointment>> getAppointments(
-            @RequestParam(required = false) Appointment.AppointmentStatus status
-    ) {
+            @RequestParam(required = false) Appointment.AppointmentStatus status) {
         List<Appointment> appointments;
         if (status != null) {
             appointments = appointmentService.getAppointmentsByStatus(status);
@@ -87,12 +82,19 @@ public class AppointmentController {
         return ResponseEntity.ok(appointments);
     }
 
+    @GetMapping("/my-appointments")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public ResponseEntity<List<Appointment>> getMyAppointments(Authentication authentication) {
+        String customerEmail = authentication.getName();
+        List<Appointment> appointments = appointmentService.getAppointmentsByCustomerEmail(customerEmail);
+        return ResponseEntity.ok(appointments);
+    }
+
     @PutMapping("/{id}/status")
     @PreAuthorize("hasAnyRole('EMPLOYEE', 'ADMIN')")
     public ResponseEntity<Appointment> updateStatus(
             @PathVariable Long id,
-            @Valid @RequestBody UpdateStatusDTO request
-    ) {
+            @Valid @RequestBody UpdateStatusDTO request) {
         Appointment updatedAppointment = appointmentService.updateAppointmentStatus(id, request.getStatus());
         return ResponseEntity.ok(updatedAppointment);
     }
@@ -101,8 +103,7 @@ public class AppointmentController {
     @PreAuthorize("hasAnyRole('EMPLOYEE', 'ADMIN')")
     public ResponseEntity<Appointment> updateNotes(
             @PathVariable Long id,
-            @Valid @RequestBody UpdateNotesDTO request
-    ) {
+            @Valid @RequestBody UpdateNotesDTO request) {
         Appointment updatedAppointment = appointmentService.updateTechnicianNotes(id, request.getTechnicianNotes());
         return ResponseEntity.ok(updatedAppointment);
     }
@@ -111,13 +112,11 @@ public class AppointmentController {
     @PreAuthorize("hasAnyRole('EMPLOYEE', 'ADMIN')")
     public ResponseEntity<Appointment> submitQuote(
             @PathVariable Long id,
-            @Valid @RequestBody QuoteRequestDTO request
-    ) {
+            @Valid @RequestBody QuoteRequestDTO request) {
         Appointment updatedAppointment = appointmentService.submitQuote(
                 id,
                 request.getQuotePrice(),
-                request.getQuoteDetails()
-        );
+                request.getQuoteDetails());
         return ResponseEntity.ok(updatedAppointment);
     }
 
@@ -125,8 +124,7 @@ public class AppointmentController {
     @PreAuthorize("hasAnyRole('EMPLOYEE', 'ADMIN')")
     public ResponseEntity<Appointment> assignEmployee(
             @PathVariable Long id,
-            @Valid @RequestBody AssignEmployeeDTO request
-    ) {
+            @Valid @RequestBody AssignEmployeeDTO request) {
         Appointment updatedAppointment = appointmentService.assignEmployee(id, request.getEmployeeId());
         return ResponseEntity.ok(updatedAppointment);
     }

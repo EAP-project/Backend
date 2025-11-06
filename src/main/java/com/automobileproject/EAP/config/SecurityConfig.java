@@ -30,17 +30,19 @@ public class SecurityConfig {
         http
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(authz -> authz
+                        // Allow all OPTIONS requests (CORS preflight)
+                        .requestMatchers(request -> "OPTIONS".equals(request.getMethod())).permitAll()
                         // Public endpoints - MODIFIED FOR EMAIL VERIFICATION AND FORGOT PASSWORD
-                        .requestMatchers("/api/register", "/api/login", "/api/verify-email", "/api/forgot-password", "/api/reset-password").permitAll()
+                        .requestMatchers("/api/register", "/api/login", "/api/verify-email", "/api/forgot-password",
+                                "/api/reset-password")
+                        .permitAll()
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/customer/**").hasRole("CUSTOMER")
                         .requestMatchers("/api/employee/**").hasRole("EMPLOYEE")
                         .requestMatchers("/api/**").authenticated()
-                        .anyRequest().permitAll()
-                )
+                        .anyRequest().permitAll())
                 .sessionManagement(session -> session
-                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
-                )
+                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .formLogin(form -> form.disable())
                 .httpBasic(httpBasic -> httpBasic.disable())
                 .logout(logout -> logout.disable())
@@ -55,7 +57,8 @@ public class SecurityConfig {
             @Override
             public void addCorsMappings(CorsRegistry registry) {
                 registry.addMapping("/api/**")
-                        .allowedOrigins("http://localhost:3000", "http://localhost:3002","http://localhost:3001", "http://localhost:3003", "http://localhost:3004", "http://localhost:3005")
+                        .allowedOrigins("http://localhost:3000", "http://localhost:3002", "http://localhost:3001",
+                                "http://localhost:3003", "http://localhost:3004", "http://localhost:3005")
                         .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
                         .allowedHeaders("*")
                         .allowCredentials(true);

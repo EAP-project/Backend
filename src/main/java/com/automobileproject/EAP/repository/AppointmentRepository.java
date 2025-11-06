@@ -1,6 +1,7 @@
 package com.automobileproject.EAP.repository;
 
 import com.automobileproject.EAP.model.Appointment;
+import com.automobileproject.EAP.model.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.stereotype.Repository;
 
@@ -19,4 +20,9 @@ public interface AppointmentRepository extends JpaRepository<Appointment, Long> 
      * Find all appointments with a specific status.
      */
     List<Appointment> findByStatus(Appointment.AppointmentStatus status);
+
+    /**
+     * Find all appointments for a specific customer (vehicle owner).
+     */
+    List<Appointment> findByVehicle_Owner(User owner);
 }
