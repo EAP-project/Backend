@@ -58,6 +58,19 @@ public class TimeLogService {
     }
 
     /**
+     * Get all time logs across all employees (for admin).
+     */
+    @Transactional(readOnly = true)
+    public List<TimeLogDTO> getAllTimeLogs() {
+        // Use eager fetching query to avoid LazyInitializationException
+        List<TimeLog> timeLogs = timeLogRepository.findAllWithRelations();
+
+        return timeLogs.stream()
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
+    }
+
+    /**
      * Create a new time log for an appointment.
      * Only EMPLOYEE can create time logs.
      * Employee must be assigned to the appointment.
