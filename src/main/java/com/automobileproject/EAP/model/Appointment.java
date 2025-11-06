@@ -49,15 +49,13 @@ public class Appointment {
     private String quoteDetails;
     private Boolean quoteApproved;
 
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "vehicle_id", nullable = false)
-    @JsonIgnore
     private Vehicle vehicle;
 
     // Optional for modification requests
-    @ManyToOne(fetch = FetchType.LAZY)
+    @ManyToOne(fetch = FetchType.EAGER)
     @JoinColumn(name = "service_id",nullable = true)
-    @JsonIgnore
     private Service service;
 
     @ManyToMany(fetch = FetchType.LAZY)
