@@ -33,11 +33,24 @@ public class TimeLogService {
      */
     @Transactional(readOnly = true)
     public List<TimeLogDTO> getTimeLogsByAppointmentId(Long appointmentId) {
-        Appointment appointment = appointmentRepository.findById(appointmentId)
-                .orElseThrow(() -> new EntityNotFoundException("Appointment not found"));
-
         // Use eager fetching query to avoid LazyInitializationException
         List<TimeLog> timeLogs = timeLogRepository.findByAppointmentIdWithRelations(appointmentId);
+
+        return timeLogs.stream()
+                .map(this::convertToDTO)
+                .collect(Collectors.toList());
+    }
+
+    /**
+     * Get all time logs for the logged-in employee.
+     */
+    @Transactional(readOnly = true)
+    public List<TimeLogDTO> getMyTimeLogs(String employeeEmail) {
+        User employee = userRepository.findByEmail(employeeEmail)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found: " + employeeEmail));
+
+        // Use eager fetching query to avoid LazyInitializationException
+        List<TimeLog> timeLogs = timeLogRepository.findByEmployeeIdWithRelations(employee.getId());
 
         return timeLogs.stream()
                 .map(this::convertToDTO)
@@ -101,13 +114,36 @@ public class TimeLogService {
                 .employeeLastName(timeLog.getEmployee().getLastName())
                 .employeeEmail(timeLog.getEmployee().getEmail());
 
+        // Add appointment context information
+        if (timeLog.getAppointment() != null) {
+            if (timeLog.getAppointment().getService() != null) {
+                builder.serviceName(timeLog.getAppointment().getService().getName());
+            }
+            if (timeLog.getAppointment().getVehicle() != null) {
+                builder.vehicleModel(timeLog.getAppointment().getVehicle().getModel());
+                builder.vehicleNumber(timeLog.getAppointment().getVehicle().getLicensePlate());
+            }
+        }
+
         // Calculate duration if endTime is provided
         if (timeLog.getEndTime() != null && timeLog.getStartTime() != null) {
             Duration duration = Duration.between(timeLog.getStartTime(), timeLog.getEndTime());
+
+            // Get total seconds in the duration
+            long totalSeconds = duration.getSeconds();
+
+            // Calculate hours, minutes, and seconds
+            long hours = totalSeconds / 3600;
+            long minutes = (totalSeconds % 3600) / 60;
+            long seconds = totalSeconds % 60;
+
             builder.durationMinutes(duration.toMinutes());
+            builder.formattedDuration(String.format("%02d:%02d:%02d", hours, minutes, seconds));
+        } else {
+            // If time log is still in progress (no end time), set to "In Progress"
+            builder.formattedDuration("In Progress");
         }
 
         return builder.build();
     }
 }
-

@@ -90,6 +90,21 @@ public class AppointmentController {
         return ResponseEntity.ok(appointments);
     }
 
+    @GetMapping("/my-history")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public ResponseEntity<List<Appointment>> getMyServiceHistory(Authentication authentication) {
+        String customerEmail = authentication.getName();
+        List<Appointment> history = appointmentService.getCustomerServiceHistory(customerEmail);
+        return ResponseEntity.ok(history);
+    }
+
+    @GetMapping("/history")
+    @PreAuthorize("hasAnyRole('EMPLOYEE', 'ADMIN')")
+    public ResponseEntity<List<Appointment>> getAllServiceHistory() {
+        List<Appointment> history = appointmentService.getAllCompletedAppointments();
+        return ResponseEntity.ok(history);
+    }
+
     @PutMapping("/{id}/status")
     @PreAuthorize("hasAnyRole('EMPLOYEE', 'ADMIN')")
     public ResponseEntity<Appointment> updateStatus(
@@ -158,6 +173,22 @@ public class AppointmentController {
     public ResponseEntity<List<Appointment>> getMyInProgressAppointments(Authentication authentication) {
         String employeeEmail = authentication.getName();
         List<Appointment> appointments = appointmentService.getEmployeeInProgressAppointments(employeeEmail);
+        return ResponseEntity.ok(appointments);
+    }
+
+    @GetMapping("/my-awaiting-parts")
+    @PreAuthorize("hasAnyRole('EMPLOYEE', 'ADMIN')")
+    public ResponseEntity<List<Appointment>> getMyAwaitingPartsAppointments(Authentication authentication) {
+        String employeeEmail = authentication.getName();
+        List<Appointment> appointments = appointmentService.getEmployeeAwaitingPartsAppointments(employeeEmail);
+        return ResponseEntity.ok(appointments);
+    }
+
+    @GetMapping("/my-completed")
+    @PreAuthorize("hasAnyRole('EMPLOYEE', 'ADMIN')")
+    public ResponseEntity<List<Appointment>> getMyCompletedAppointments(Authentication authentication) {
+        String employeeEmail = authentication.getName();
+        List<Appointment> appointments = appointmentService.getEmployeeCompletedAppointments(employeeEmail);
         return ResponseEntity.ok(appointments);
     }
 }
