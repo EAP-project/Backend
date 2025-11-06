@@ -66,7 +66,8 @@ public class AuthController {
             if (!user.getEmailVerified()) {
                 log.warn("Login attempt with unverified email: {}", request.getEmail());
                 return ResponseEntity.status(HttpStatus.FORBIDDEN)
-                        .body(new ErrorResponse("Please verify your email address before logging in. Check your inbox for the verification link."));
+                        .body(new ErrorResponse(
+                                "Please verify your email address before logging in. Check your inbox for the verification link."));
             }
 
             authenticateUser(request.getEmail(), request.getPassword());
@@ -93,8 +94,7 @@ public class AuthController {
 
     private void authenticateUser(String email, String password) {
         authenticationManager.authenticate(
-                new UsernamePasswordAuthenticationToken(email, password)
-        );
+                new UsernamePasswordAuthenticationToken(email, password));
     }
 
     // Email verification endpoint - ADDED FOR EMAIL VERIFICATION
@@ -131,7 +131,8 @@ public class AuthController {
 
         } catch (Exception e) {
             log.error("Forgot password error for: {}", request.getEmail(), e);
-            // Don't reveal if email exists or not for security - ADDED FOR FORGOT PASSWORD FEATURE
+            // Don't reveal if email exists or not for security - ADDED FOR FORGOT PASSWORD
+            // FEATURE
             return ResponseEntity.ok("If the email exists, a password reset link will be sent.");
         }
     }
@@ -158,7 +159,8 @@ public class AuthController {
         }
     }
 
-    // Validate password reset token from email link - ADDED FOR FORGOT PASSWORD FEATURE
+    // Validate password reset token from email link - ADDED FOR FORGOT PASSWORD
+    // FEATURE
     @GetMapping("/reset-password")
     public ResponseEntity<?> validateResetToken(@RequestParam("token") String token) {
         try {
@@ -167,7 +169,8 @@ public class AuthController {
             // Validate the token exists and is not expired
             userService.validatePasswordResetToken(token);
 
-            return ResponseEntity.ok("Token is valid. Please use POST /api/reset-password with your new password. Token: " + token);
+            return ResponseEntity
+                    .ok("Token is valid. Please use POST /api/reset-password with your new password. Token: " + token);
 
         } catch (IllegalArgumentException e) {
             log.warn("Password reset token validation failed: {}", e.getMessage());
