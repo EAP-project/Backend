@@ -15,6 +15,9 @@ import com.automobileproject.EAP.repository.UserRepository;
 import com.automobileproject.EAP.repository.VehicleRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import org.springframework.context.ApplicationEventPublisher;
+import com.automobileproject.EAP.event.AppointmentStatusChangedEvent;
+import java.util.Objects;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
@@ -31,6 +34,7 @@ public class AppointmentService {
     private final UserRepository userRepository;
     private final VehicleRepository vehicleRepository;
     private final ServiceRepository serviceRepository;
+    private final ApplicationEventPublisher eventPublisher;
 
     // Define which statuses mean a car is "In the Garage"
     private static final List<Appointment.AppointmentStatus> ACTIVE_STATUSES = Arrays.asList(
@@ -45,10 +49,11 @@ public class AppointmentService {
                 .orElseThrow(() -> new UsernameNotFoundException("User not found: " + customerEmail));
 
         // 2. Find the vehicle and service from the request
-        Vehicle vehicle = vehicleRepository.findById(dto.getVehicleId())
+        Vehicle vehicle = vehicleRepository.findById(Objects.requireNonNull(dto.getVehicleId()))
                 .orElseThrow(() -> new EntityNotFoundException("Vehicle not found"));
 
-        com.automobileproject.EAP.model.Service service = serviceRepository.findById(dto.getServiceId())
+        com.automobileproject.EAP.model.Service service = serviceRepository
+                .findById(Objects.requireNonNull(dto.getServiceId()))
                 .orElseThrow(() -> new EntityNotFoundException("Service not found"));
 
         // 3. --- CRITICAL SECURITY CHECK ---
@@ -75,7 +80,7 @@ public class AppointmentService {
                 .build();
 
         // 6. Save and return
-        return appointmentRepository.save(appointment);
+        return appointmentRepository.save(Objects.requireNonNull(appointment));
     }
 
     @Transactional
@@ -86,7 +91,7 @@ public class AppointmentService {
                 .orElseThrow(() -> new UsernameNotFoundException("User not found: " + customerEmail));
 
         // 2. Find the vehicle from the request
-        Vehicle vehicle = vehicleRepository.findById(dto.getVehicleId())
+        Vehicle vehicle = vehicleRepository.findById(Objects.requireNonNull(dto.getVehicleId()))
                 .orElseThrow(() -> new EntityNotFoundException("Vehicle not found"));
 
         // 3. --- CRITICAL SECURITY CHECK ---
@@ -114,7 +119,7 @@ public class AppointmentService {
                 .build();
 
         // 6. Save and return
-        return appointmentRepository.save(appointment);
+        return appointmentRepository.save(Objects.requireNonNull(appointment));
     }
 
     /**
@@ -150,7 +155,7 @@ public class AppointmentService {
      */
     @Transactional
     public Appointment updateAppointmentStatus(Long id, Appointment.AppointmentStatus newStatus) {
-        Appointment appointment = appointmentRepository.findById(id)
+        Appointment appointment = appointmentRepository.findById(Objects.requireNonNull(id))
                 .orElseThrow(() -> new EntityNotFoundException("Appointment not found"));
 
         // Validate status transition (basic validation - can be enhanced)
@@ -163,7 +168,12 @@ public class AppointmentService {
         }
 
         appointment.setStatus(newStatus);
-        return appointmentRepository.save(appointment);
+        Appointment saved = appointmentRepository.save(appointment);
+        // Publish status change event for customer (vehicle owner)
+        Long userId = saved.getVehicle().getOwner().getId();
+        eventPublisher.publishEvent(
+                new AppointmentStatusChangedEvent(saved.getId(), userId, currentStatus.name(), newStatus.name()));
+        return saved;
     }
 
     /**
@@ -172,7 +182,7 @@ public class AppointmentService {
      */
     @Transactional
     public Appointment updateTechnicianNotes(Long id, String notes) {
-        Appointment appointment = appointmentRepository.findById(id)
+        Appointment appointment = appointmentRepository.findById(Objects.requireNonNull(id))
                 .orElseThrow(() -> new EntityNotFoundException("Appointment not found"));
 
         appointment.setTechnicianNotes(notes);
@@ -186,7 +196,7 @@ public class AppointmentService {
      */
     @Transactional
     public Appointment submitQuote(Long id, Double quotePrice, String quoteDetails) {
-        Appointment appointment = appointmentRepository.findById(id)
+        Appointment appointment = appointmentRepository.findById(Objects.requireNonNull(id))
                 .orElseThrow(() -> new EntityNotFoundException("Appointment not found"));
 
         // Validate that this is a modification project
@@ -202,9 +212,14 @@ public class AppointmentService {
 
         appointment.setQuotePrice(quotePrice);
         appointment.setQuoteDetails(quoteDetails);
+        Appointment.AppointmentStatus old = appointment.getStatus();
         appointment.setStatus(Appointment.AppointmentStatus.AWAITING_CUSTOMER_APPROVAL);
 
-        return appointmentRepository.save(appointment);
+        Appointment saved = appointmentRepository.save(appointment);
+        Long userId = saved.getVehicle().getOwner().getId();
+        eventPublisher.publishEvent(
+                new AppointmentStatusChangedEvent(saved.getId(), userId, old.name(), saved.getStatus().name()));
+        return saved;
     }
 
     /**
@@ -213,10 +228,10 @@ public class AppointmentService {
      */
     @Transactional
     public Appointment assignEmployee(Long appointmentId, Long employeeId) {
-        Appointment appointment = appointmentRepository.findById(appointmentId)
+        Appointment appointment = appointmentRepository.findById(Objects.requireNonNull(appointmentId))
                 .orElseThrow(() -> new EntityNotFoundException("Appointment not found"));
 
-        User employee = userRepository.findById(employeeId)
+        User employee = userRepository.findById(Objects.requireNonNull(employeeId))
                 .orElseThrow(() -> new EntityNotFoundException("Employee not found"));
 
         // Validate that the user is an employee
@@ -242,7 +257,7 @@ public class AppointmentService {
      */
     @Transactional
     public Appointment acceptAppointment(Long appointmentId, String employeeEmail) {
-        Appointment appointment = appointmentRepository.findById(appointmentId)
+        Appointment appointment = appointmentRepository.findById(Objects.requireNonNull(appointmentId))
                 .orElseThrow(() -> new EntityNotFoundException("Appointment not found"));
 
         User employee = userRepository.findByEmail(employeeEmail)
@@ -257,9 +272,14 @@ public class AppointmentService {
         appointment.getAssignedEmployees().add(employee);
 
         // Change status to IN_PROGRESS
+        Appointment.AppointmentStatus old = appointment.getStatus();
         appointment.setStatus(Appointment.AppointmentStatus.IN_PROGRESS);
 
-        return appointmentRepository.save(appointment);
+        Appointment saved = appointmentRepository.save(appointment);
+        Long userId = saved.getVehicle().getOwner().getId();
+        eventPublisher.publishEvent(
+                new AppointmentStatusChangedEvent(saved.getId(), userId, old.name(), saved.getStatus().name()));
+        return saved;
     }
 
     /**
@@ -278,7 +298,7 @@ public class AppointmentService {
      */
     @Transactional
     public Appointment cancelAppointment(Long appointmentId) {
-        Appointment appointment = appointmentRepository.findById(appointmentId)
+        Appointment appointment = appointmentRepository.findById(Objects.requireNonNull(appointmentId))
                 .orElseThrow(() -> new EntityNotFoundException("Appointment not found"));
 
         // Validate appointment can be cancelled
@@ -287,8 +307,13 @@ public class AppointmentService {
             throw new IllegalStateException("Cannot cancel a completed or already cancelled appointment.");
         }
 
+        Appointment.AppointmentStatus old = appointment.getStatus();
         appointment.setStatus(Appointment.AppointmentStatus.CANCELLED);
 
-        return appointmentRepository.save(appointment);
+        Appointment saved = appointmentRepository.save(appointment);
+        Long userId = saved.getVehicle().getOwner().getId();
+        eventPublisher.publishEvent(
+                new AppointmentStatusChangedEvent(saved.getId(), userId, old.name(), saved.getStatus().name()));
+        return saved;
     }
 }
