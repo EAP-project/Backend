@@ -1,6 +1,7 @@
 package com.automobileproject.EAP.repository;
 
 import com.automobileproject.EAP.model.Appointment;
+import com.automobileproject.EAP.model.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
@@ -24,30 +25,36 @@ public interface AppointmentRepository extends JpaRepository<Appointment, Long> 
     List<Appointment> findByStatus(Appointment.AppointmentStatus status);
 
     /**
+     * Find all appointments for a specific customer (vehicle owner).
+     */
+    List<Appointment> findByVehicle_Owner(User owner);
+
+
+    /**
      * Check if a specific slot is booked on a specific date.
      * Checks if there's an appointment with the given slot on the given date.
      */
     @Query("SELECT CASE WHEN COUNT(a) > 0 THEN true ELSE false END " +
-           "FROM Appointment a " +
-           "WHERE a.appointmentSlot.id = :slotId " +
-           "AND CAST(a.appointmentDateTime AS date) = :date " +
-           "AND a.status != 'CANCELLED'")
+            "FROM Appointment a " +
+            "WHERE a.appointmentSlot.id = :slotId " +
+            "AND CAST(a.appointmentDateTime AS date) = :date " +
+            "AND a.status != 'CANCELLED'")
     boolean isSlotBookedOnDate(@Param("slotId") Long slotId, @Param("date") LocalDate date);
 
     /**
      * Find all appointments for a specific date and slot
      */
     @Query("SELECT a FROM Appointment a " +
-           "WHERE a.appointmentSlot.id = :slotId " +
-           "AND CAST(a.appointmentDateTime AS date) = :date " +
-           "AND a.status != 'CANCELLED'")
+            "WHERE a.appointmentSlot.id = :slotId " +
+            "AND CAST(a.appointmentDateTime AS date) = :date " +
+            "AND a.status != 'CANCELLED'")
     List<Appointment> findBySlotIdAndDate(@Param("slotId") Long slotId, @Param("date") LocalDate date);
 
     /**
      * Find all appointments on a specific date
      */
     @Query("SELECT a FROM Appointment a " +
-           "WHERE CAST(a.appointmentDateTime AS date) = :date " +
-           "AND a.status != 'CANCELLED'")
+            "WHERE CAST(a.appointmentDateTime AS date) = :date " +
+            "AND a.status != 'CANCELLED'")
     List<Appointment> findByDate(@Param("date") LocalDate date);
 }

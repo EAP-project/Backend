@@ -30,13 +30,30 @@ public class SecurityConfig {
         http
                 .csrf(csrf -> csrf.disable())
                 .authorizeHttpRequests(authz -> authz
-                        .requestMatchers("/api/register", "/api/login").permitAll()
-                        // Allow public access to slot availability endpoints (for chatbot)
-                        .requestMatchers("/api/slots/available/**", "/api/slots/check-availability", "/api/slots/count").permitAll()
+                        // Allow all OPTIONS requests (CORS preflight)
+                        .requestMatchers(request -> "OPTIONS".equals(request.getMethod())).permitAll()
+
+                        // Public endpoints for authentication and chatbot
+                        .requestMatchers(
+                                "/api/register",
+                                "/api/login",
+                                "/api/verify-email",
+                                "/api/forgot-password",
+                                "/api/reset-password",
+                                "/api/slots/available/**",
+                                "/api/slots/check-availability",
+                                "/api/slots/count"
+                        ).permitAll()
+
+                        // Role-based access
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/customer/**").hasRole("CUSTOMER")
                         .requestMatchers("/api/employee/**").hasRole("EMPLOYEE")
+
+                        // Authenticated access for all other API routes
                         .requestMatchers("/api/**").authenticated()
+
+                        // Permit all other non-API requests (e.g., static assets)
                         .anyRequest().permitAll()
                 )
                 .sessionManagement(session -> session
@@ -56,7 +73,14 @@ public class SecurityConfig {
             @Override
             public void addCorsMappings(CorsRegistry registry) {
                 registry.addMapping("/api/**")
-                        .allowedOrigins("http://localhost:3000", "http://localhost:3002","http://localhost:3001", "http://localhost:3003", "http://localhost:3004", "http://localhost:3005")
+                        .allowedOrigins(
+                                "http://localhost:3000",
+                                "http://localhost:3001",
+                                "http://localhost:3002",
+                                "http://localhost:3003",
+                                "http://localhost:3004",
+                                "http://localhost:3005"
+                        )
                         .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
                         .allowedHeaders("*")
                         .allowCredentials(true);

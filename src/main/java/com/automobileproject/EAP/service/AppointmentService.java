@@ -40,8 +40,7 @@ public class AppointmentService {
     // Define which statuses mean a car is "In the Garage"
     private static final List<Appointment.AppointmentStatus> ACTIVE_STATUSES = Arrays.asList(
             Appointment.AppointmentStatus.IN_PROGRESS,
-            Appointment.AppointmentStatus.AWAITING_PARTS
-    );
+            Appointment.AppointmentStatus.AWAITING_PARTS);
 
     @Transactional
     public Appointment createStandardAppointment(AppointmentRequestDTO dto, String customerEmail) {
@@ -106,9 +105,11 @@ public class AppointmentService {
         }
 
         // 4. --- NO VEHICLE BUSY CHECK FOR MODIFICATION REQUESTS ---
-        // Modification requests are just quote requests - they don't require the vehicle
+        // Modification requests are just quote requests - they don't require the
+        // vehicle
         // to be physically available. A customer can request a quote for modifications
-        // at any time, even if their vehicle is currently in the garage for another service.
+        // at any time, even if their vehicle is currently in the garage for another
+        // service.
 
         // 5. Build the new modification request appointment
         Appointment appointment = Appointment.builder()
@@ -141,6 +142,17 @@ public class AppointmentService {
     }
 
     /**
+     * Get appointments for a specific customer by email.
+     * Only the CUSTOMER themselves can access this.
+     */
+    public List<Appointment> getAppointmentsByCustomerEmail(String customerEmail) {
+        User customer = userRepository.findByEmail(customerEmail)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found: " + customerEmail));
+
+        return appointmentRepository.findByVehicle_Owner(customer);
+    }
+
+    /**
      * Update the status of an appointment.
      * Only EMPLOYEE or ADMIN can update status.
      */
@@ -154,7 +166,7 @@ public class AppointmentService {
 
         // Basic validation: can't update if already completed or cancelled
         if (currentStatus == Appointment.AppointmentStatus.COMPLETED ||
-            currentStatus == Appointment.AppointmentStatus.CANCELLED) {
+                currentStatus == Appointment.AppointmentStatus.CANCELLED) {
             throw new IllegalStateException("Cannot update status of a completed or cancelled appointment.");
         }
 
@@ -192,7 +204,8 @@ public class AppointmentService {
 
         // Validate that status is QUOTE_REQUESTED
         if (appointment.getStatus() != Appointment.AppointmentStatus.QUOTE_REQUESTED) {
-            throw new IllegalStateException("Quote can only be submitted for appointments with QUOTE_REQUESTED status.");
+            throw new IllegalStateException(
+                    "Quote can only be submitted for appointments with QUOTE_REQUESTED status.");
         }
 
         appointment.setQuotePrice(quotePrice);
