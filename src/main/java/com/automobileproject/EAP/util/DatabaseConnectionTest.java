@@ -1,4 +1,4 @@
-package com.automobileproject.EAP.utils;
+package com.automobileproject.EAP.util;
 
 import org.springframework.beans.factory.annotation.Autowired;
 import org.springframework.boot.CommandLineRunner;
