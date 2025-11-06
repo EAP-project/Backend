@@ -25,4 +25,9 @@ public interface AppointmentRepository extends JpaRepository<Appointment, Long> 
      * Find all appointments for a specific customer (vehicle owner).
      */
     List<Appointment> findByVehicle_Owner(User owner);
+
+    /**
+     * Find appointments assigned to a specific employee with a specific status.
+     */
+    List<Appointment> findByAssignedEmployeesContainingAndStatus(User employee, Appointment.AppointmentStatus status);
 }

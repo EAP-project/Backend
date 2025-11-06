@@ -128,4 +128,36 @@ public class AppointmentController {
         Appointment updatedAppointment = appointmentService.assignEmployee(id, request.getEmployeeId());
         return ResponseEntity.ok(updatedAppointment);
     }
+
+    @GetMapping("/scheduled")
+    @PreAuthorize("hasAnyRole('EMPLOYEE', 'ADMIN')")
+    public ResponseEntity<List<Appointment>> getScheduledAppointments() {
+        List<Appointment> appointments = appointmentService.getScheduledAppointments();
+        return ResponseEntity.ok(appointments);
+    }
+
+    @PostMapping("/{id}/accept")
+    @PreAuthorize("hasAnyRole('EMPLOYEE', 'ADMIN')")
+    public ResponseEntity<Appointment> acceptAppointment(
+            @PathVariable Long id,
+            Authentication authentication) {
+        String employeeEmail = authentication.getName();
+        Appointment updatedAppointment = appointmentService.acceptAppointment(id, employeeEmail);
+        return ResponseEntity.ok(updatedAppointment);
+    }
+
+    @PostMapping("/{id}/cancel")
+    @PreAuthorize("hasAnyRole('EMPLOYEE', 'ADMIN')")
+    public ResponseEntity<Appointment> cancelAppointment(@PathVariable Long id) {
+        Appointment updatedAppointment = appointmentService.cancelAppointment(id);
+        return ResponseEntity.ok(updatedAppointment);
+    }
+
+    @GetMapping("/my-inprogress")
+    @PreAuthorize("hasAnyRole('EMPLOYEE', 'ADMIN')")
+    public ResponseEntity<List<Appointment>> getMyInProgressAppointments(Authentication authentication) {
+        String employeeEmail = authentication.getName();
+        List<Appointment> appointments = appointmentService.getEmployeeInProgressAppointments(employeeEmail);
+        return ResponseEntity.ok(appointments);
+    }
 }
