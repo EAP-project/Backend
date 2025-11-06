@@ -31,6 +31,16 @@ public class TimeLogController {
     }
 
     /**
+     * Get all time logs across all employees (for admin).
+     */
+    @GetMapping("/all")
+    @PreAuthorize("hasRole('ADMIN')")
+    public ResponseEntity<List<TimeLogDTO>> getAllTimeLogs() {
+        List<TimeLogDTO> timeLogs = timeLogService.getAllTimeLogs();
+        return ResponseEntity.ok(timeLogs);
+    }
+
+    /**
      * Get all time logs for a specific appointment.
      */
     @GetMapping("/appointment/{appointmentId}")

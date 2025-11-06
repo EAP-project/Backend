@@ -49,4 +49,16 @@ public interface TimeLogRepository extends JpaRepository<TimeLog, Long> {
             "WHERE tl.employee.id = :employeeId " +
             "ORDER BY tl.startTime DESC")
     List<TimeLog> findByEmployeeIdWithRelations(@Param("employeeId") Long employeeId);
+
+    /**
+     * Find all time logs across all employees with eager loading of relationships
+     * (for admin).
+     */
+    @Query("SELECT tl FROM TimeLog tl " +
+            "LEFT JOIN FETCH tl.appointment a " +
+            "LEFT JOIN FETCH a.service " +
+            "LEFT JOIN FETCH a.vehicle " +
+            "LEFT JOIN FETCH tl.employee " +
+            "ORDER BY tl.startTime DESC")
+    List<TimeLog> findAllWithRelations();
 }
