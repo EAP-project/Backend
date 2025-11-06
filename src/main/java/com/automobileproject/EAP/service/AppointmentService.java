@@ -7,10 +7,12 @@ import com.automobileproject.EAP.dto.QuoteRequestDTO;
 import com.automobileproject.EAP.dto.UpdateNotesDTO;
 import com.automobileproject.EAP.dto.UpdateStatusDTO;
 import com.automobileproject.EAP.model.Appointment;
+import com.automobileproject.EAP.model.TimeLog;
 import com.automobileproject.EAP.model.User;
 import com.automobileproject.EAP.model.Vehicle;
 import com.automobileproject.EAP.repository.AppointmentRepository;
 import com.automobileproject.EAP.repository.ServiceRepository;
+import com.automobileproject.EAP.repository.TimeLogRepository;
 import com.automobileproject.EAP.repository.UserRepository;
 import com.automobileproject.EAP.repository.VehicleRepository;
 import jakarta.persistence.EntityNotFoundException;
@@ -20,8 +22,10 @@ import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.OffsetDateTime;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Optional;
 
 @Service
 @RequiredArgsConstructor
@@ -31,6 +35,7 @@ public class AppointmentService {
     private final UserRepository userRepository;
     private final VehicleRepository vehicleRepository;
     private final ServiceRepository serviceRepository;
+    private final TimeLogRepository timeLogRepository;
 
     // Define which statuses mean a car is "In the Garage"
     private static final List<Appointment.AppointmentStatus> ACTIVE_STATUSES = Arrays.asList(
@@ -145,6 +150,30 @@ public class AppointmentService {
     }
 
     /**
+     * Get service history (completed appointments) for a customer.
+     * Only the CUSTOMER themselves can access this.
+     */
+    public List<Appointment> getCustomerServiceHistory(String customerEmail) {
+        User customer = userRepository.findByEmail(customerEmail)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found: " + customerEmail));
+
+        List<Appointment> allAppointments = appointmentRepository.findByVehicle_Owner(customer);
+
+        // Filter only completed appointments
+        return allAppointments.stream()
+                .filter(apt -> apt.getStatus() == Appointment.AppointmentStatus.COMPLETED)
+                .toList();
+    }
+
+    /**
+     * Get all completed appointments with customer details for employees.
+     * Only EMPLOYEE or ADMIN can access this.
+     */
+    public List<Appointment> getAllCompletedAppointments() {
+        return appointmentRepository.findByStatus(Appointment.AppointmentStatus.COMPLETED);
+    }
+
+    /**
      * Update the status of an appointment.
      * Only EMPLOYEE or ADMIN can update status.
      */
@@ -160,6 +189,45 @@ public class AppointmentService {
         if (currentStatus == Appointment.AppointmentStatus.COMPLETED ||
                 currentStatus == Appointment.AppointmentStatus.CANCELLED) {
             throw new IllegalStateException("Cannot update status of a completed or cancelled appointment.");
+        }
+
+        // AUTO-COMPLETE TIME LOGS when moving to certain statuses
+        if (currentStatus == Appointment.AppointmentStatus.IN_PROGRESS &&
+                (newStatus == Appointment.AppointmentStatus.AWAITING_PARTS ||
+                        newStatus == Appointment.AppointmentStatus.COMPLETED)) {
+
+            // Find all active (incomplete) time logs for this appointment and complete them
+            List<TimeLog> activeTimeLogs = timeLogRepository.findByAppointmentIdAndEndTimeIsNull(id);
+            OffsetDateTime now = OffsetDateTime.now();
+
+            for (TimeLog timeLog : activeTimeLogs) {
+                timeLog.setEndTime(now);
+                if (newStatus == Appointment.AppointmentStatus.AWAITING_PARTS) {
+                    timeLog.setNotes(timeLog.getNotes() + " - Paused: Awaiting parts");
+                } else if (newStatus == Appointment.AppointmentStatus.COMPLETED) {
+                    timeLog.setNotes(timeLog.getNotes() + " - Work completed");
+                }
+                timeLogRepository.save(timeLog);
+            }
+        }
+
+        // AUTO-CREATE NEW TIME LOG when resuming work from AWAITING_PARTS
+        if (currentStatus == Appointment.AppointmentStatus.AWAITING_PARTS &&
+                newStatus == Appointment.AppointmentStatus.IN_PROGRESS) {
+
+            // Get the first assigned employee (or we could create a log for each)
+            if (!appointment.getAssignedEmployees().isEmpty()) {
+                User employee = appointment.getAssignedEmployees().iterator().next();
+
+                TimeLog timeLog = TimeLog.builder()
+                        .appointment(appointment)
+                        .employee(employee)
+                        .startTime(OffsetDateTime.now())
+                        .endTime(null)
+                        .notes("Work resumed after waiting for parts")
+                        .build();
+                timeLogRepository.save(timeLog);
+            }
         }
 
         appointment.setStatus(newStatus);
@@ -259,6 +327,16 @@ public class AppointmentService {
         // Change status to IN_PROGRESS
         appointment.setStatus(Appointment.AppointmentStatus.IN_PROGRESS);
 
+        // AUTO-CREATE TIME LOG: Start tracking time when work begins
+        TimeLog timeLog = TimeLog.builder()
+                .appointment(appointment)
+                .employee(employee)
+                .startTime(OffsetDateTime.now())
+                .endTime(null) // Still in progress
+                .notes("Work started on appointment")
+                .build();
+        timeLogRepository.save(timeLog);
+
         return appointmentRepository.save(appointment);
     }
 
@@ -271,6 +349,28 @@ public class AppointmentService {
 
         return appointmentRepository.findByAssignedEmployeesContainingAndStatus(
                 employee, Appointment.AppointmentStatus.IN_PROGRESS);
+    }
+
+    /**
+     * Get awaiting parts appointments for a specific employee
+     */
+    public List<Appointment> getEmployeeAwaitingPartsAppointments(String employeeEmail) {
+        User employee = userRepository.findByEmail(employeeEmail)
+                .orElseThrow(() -> new UsernameNotFoundException("Employee not found: " + employeeEmail));
+
+        return appointmentRepository.findByAssignedEmployeesContainingAndStatus(
+                employee, Appointment.AppointmentStatus.AWAITING_PARTS);
+    }
+
+    /**
+     * Get completed appointments for a specific employee
+     */
+    public List<Appointment> getEmployeeCompletedAppointments(String employeeEmail) {
+        User employee = userRepository.findByEmail(employeeEmail)
+                .orElseThrow(() -> new UsernameNotFoundException("Employee not found: " + employeeEmail));
+
+        return appointmentRepository.findByAssignedEmployeesContainingAndStatus(
+                employee, Appointment.AppointmentStatus.COMPLETED);
     }
 
     /**

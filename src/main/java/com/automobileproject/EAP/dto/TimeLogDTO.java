@@ -23,5 +23,10 @@ public class TimeLogDTO {
     private String employeeLastName;
     private String employeeEmail;
     private Long durationMinutes; // Calculated duration in minutes
-}
+    private String formattedDuration; // Duration in HH:MM:SS format
 
+    // Additional fields for displaying appointment context
+    private String serviceName;
+    private String vehicleModel;
+    private String vehicleNumber;
+}
