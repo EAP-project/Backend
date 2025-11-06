@@ -229,4 +229,66 @@ public class AppointmentService {
 
         return appointmentRepository.save(appointment);
     }
+
+    /**
+     * Get all scheduled appointments (visible to all employees)
+     */
+    public List<Appointment> getScheduledAppointments() {
+        return appointmentRepository.findByStatus(Appointment.AppointmentStatus.SCHEDULED);
+    }
+
+    /**
+     * Employee accepts an appointment - assigns themselves and moves to IN_PROGRESS
+     */
+    @Transactional
+    public Appointment acceptAppointment(Long appointmentId, String employeeEmail) {
+        Appointment appointment = appointmentRepository.findById(appointmentId)
+                .orElseThrow(() -> new EntityNotFoundException("Appointment not found"));
+
+        User employee = userRepository.findByEmail(employeeEmail)
+                .orElseThrow(() -> new UsernameNotFoundException("Employee not found: " + employeeEmail));
+
+        // Validate appointment is in SCHEDULED status
+        if (appointment.getStatus() != Appointment.AppointmentStatus.SCHEDULED) {
+            throw new IllegalStateException("Only scheduled appointments can be accepted.");
+        }
+
+        // Assign the employee to the appointment
+        appointment.getAssignedEmployees().add(employee);
+
+        // Change status to IN_PROGRESS
+        appointment.setStatus(Appointment.AppointmentStatus.IN_PROGRESS);
+
+        return appointmentRepository.save(appointment);
+    }
+
+    /**
+     * Get in-progress appointments for a specific employee
+     */
+    public List<Appointment> getEmployeeInProgressAppointments(String employeeEmail) {
+        User employee = userRepository.findByEmail(employeeEmail)
+                .orElseThrow(() -> new UsernameNotFoundException("Employee not found: " + employeeEmail));
+
+        return appointmentRepository.findByAssignedEmployeesContainingAndStatus(
+                employee, Appointment.AppointmentStatus.IN_PROGRESS);
+    }
+
+    /**
+     * Cancel an appointment (employee can cancel scheduled appointments)
+     */
+    @Transactional
+    public Appointment cancelAppointment(Long appointmentId) {
+        Appointment appointment = appointmentRepository.findById(appointmentId)
+                .orElseThrow(() -> new EntityNotFoundException("Appointment not found"));
+
+        // Validate appointment can be cancelled
+        if (appointment.getStatus() == Appointment.AppointmentStatus.COMPLETED ||
+                appointment.getStatus() == Appointment.AppointmentStatus.CANCELLED) {
+            throw new IllegalStateException("Cannot cancel a completed or already cancelled appointment.");
+        }
+
+        appointment.setStatus(Appointment.AppointmentStatus.CANCELLED);
+
+        return appointmentRepository.save(appointment);
+    }
 }
