@@ -23,6 +23,7 @@ public class AppointmentSlotDTO {
     private LocalTime startTime;
     private LocalTime endTime;
     private String slotDescription;
+    private Boolean isAvailable; // For availability queries
 
     /**
      * Convert entity to DTO

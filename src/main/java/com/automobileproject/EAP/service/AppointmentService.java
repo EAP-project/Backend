@@ -1,6 +1,7 @@
 package com.automobileproject.EAP.service;
 
 import com.automobileproject.EAP.dto.AppointmentRequestDTO;
+import com.automobileproject.EAP.dto.AppointmentSlotDTO;
 import com.automobileproject.EAP.dto.AssignEmployeeDTO;
 import com.automobileproject.EAP.dto.ModificationRequestDTO;
 import com.automobileproject.EAP.dto.QuoteRequestDTO;
@@ -17,18 +18,23 @@ import com.automobileproject.EAP.repository.UserRepository;
 import com.automobileproject.EAP.repository.VehicleRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
 import java.time.ZoneId;
 import java.util.Arrays;
 import java.util.List;
+import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AppointmentService {
 
     private final AppointmentRepository appointmentRepository;
@@ -306,5 +312,63 @@ public class AppointmentService {
                 .build();
 
         return appointmentRepository.save(appointment);
+    }
+
+    /**
+     * Get available slots for a specific date and session period.
+     * Returns all 5 slots with availability status based on existing bookings.
+     */
+    @Transactional(readOnly = true)
+    public List<AppointmentSlotDTO> getAvailableSlots(LocalDate date, AppointmentSlot.SessionPeriod period) {
+        log.info("Fetching available slots for date: {} and period: {}", date, period);
+
+        // 1. Get all slot templates for the period (always 5 slots: 1-5)
+        List<AppointmentSlot> templates = appointmentSlotService.getSlotTemplatesByPeriod(period);
+        log.info("Found {} slot templates for period {}", templates.size(), period);
+
+        // 2. Get already booked appointments for this specific date and period
+        List<Appointment> bookedAppointments = appointmentRepository
+                .findByAppointmentDateAndSessionPeriod(date, period);
+        log.info("Found {} booked appointments for date {} and period {}",
+                 bookedAppointments.size(), date, period);
+
+        // 3. Extract booked slot numbers - appointmentSlot is eagerly fetched via JOIN FETCH
+        Set<Integer> bookedSlotNumbers = bookedAppointments.stream()
+                .filter(apt -> apt.getAppointmentSlot() != null)
+                .map(apt -> apt.getAppointmentSlot().getSlotNumber())
+                .collect(Collectors.toSet());
+        log.info("Booked slot numbers: {}", bookedSlotNumbers);
+
+        // 4. Map templates to DTOs with availability
+        List<AppointmentSlotDTO> result = templates.stream()
+                .map(template -> AppointmentSlotDTO.builder()
+                        .slotNumber(template.getSlotNumber())
+                        .sessionPeriod(template.getSessionPeriod())
+                        .startTime(template.getStartTime())
+                        .endTime(template.getEndTime())
+                        .isAvailable(!bookedSlotNumbers.contains(template.getSlotNumber()))
+                        .build())
+                .collect(Collectors.toList());
+
+        log.info("Returning {} slots with availability info", result.size());
+        return result;
+    }
+
+    /**
+     * Get all slot templates (10 total: 5 MORNING + 5 AFTERNOON).
+     * These are the static time slot definitions.
+     */
+    public List<AppointmentSlotDTO> getAllSlotTemplates() {
+        List<AppointmentSlot> allTemplates = appointmentSlotService.getAllSlotTemplates();
+
+        return allTemplates.stream()
+                .map(template -> AppointmentSlotDTO.builder()
+                        .slotNumber(template.getSlotNumber())
+                        .sessionPeriod(template.getSessionPeriod())
+                        .startTime(template.getStartTime())
+                        .endTime(template.getEndTime())
+                        .isAvailable(true) // Templates are always "available" - actual availability checked by date
+                        .build())
+                .collect(Collectors.toList());
     }
 }

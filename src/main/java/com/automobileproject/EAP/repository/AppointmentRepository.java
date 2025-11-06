@@ -1,6 +1,7 @@
 package com.automobileproject.EAP.repository;
 
 import com.automobileproject.EAP.model.Appointment;
+import com.automobileproject.EAP.model.AppointmentSlot;
 import com.automobileproject.EAP.model.User;
 import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
@@ -57,4 +58,20 @@ public interface AppointmentRepository extends JpaRepository<Appointment, Long> 
             "WHERE CAST(a.appointmentDateTime AS date) = :date " +
             "AND a.status != 'CANCELLED'")
     List<Appointment> findByDate(@Param("date") LocalDate date);
+
+    /**
+     * Find all appointments for a specific date and session period.
+     * Used to check slot availability.
+     * Eagerly fetches the appointmentSlot to avoid lazy loading issues.
+     */
+    @Query("SELECT a FROM Appointment a " +
+            "LEFT JOIN FETCH a.appointmentSlot slot " +
+            "WHERE CAST(a.appointmentDateTime AS date) = :date " +
+            "AND slot IS NOT NULL " +
+            "AND slot.sessionPeriod = :period " +
+            "AND a.status != 'CANCELLED'")
+    List<Appointment> findByAppointmentDateAndSessionPeriod(
+            @Param("date") LocalDate date,
+            @Param("period") AppointmentSlot.SessionPeriod period
+    );
 }

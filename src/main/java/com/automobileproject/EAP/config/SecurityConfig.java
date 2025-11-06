@@ -42,7 +42,9 @@ public class SecurityConfig {
                                 "/api/reset-password",
                                 "/api/slots/available/**",
                                 "/api/slots/check-availability",
-                                "/api/slots/count"
+                                "/api/slots/count",
+                                "/api/appointments/available-slots",
+                                "/api/appointments/slot-templates"
                         ).permitAll()
 
                         // Role-based access
