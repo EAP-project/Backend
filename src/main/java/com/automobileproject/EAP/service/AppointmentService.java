@@ -49,12 +49,9 @@ public class AppointmentService {
         User customer = userRepository.findByEmail(customerEmail)
                 .orElseThrow(() -> new UsernameNotFoundException("User not found: " + customerEmail));
 
-        // 2. Find the vehicle and service from the request
+        // 2. Find the vehicle from the request
         Vehicle vehicle = vehicleRepository.findById(dto.getVehicleId())
                 .orElseThrow(() -> new EntityNotFoundException("Vehicle not found"));
-
-        com.automobileproject.EAP.model.Service service = serviceRepository.findById(dto.getServiceId())
-                .orElseThrow(() -> new EntityNotFoundException("Service not found"));
 
         // 3. --- CRITICAL SECURITY CHECK ---
         // Ensure the vehicle belongs to the logged-in customer
@@ -69,17 +66,35 @@ public class AppointmentService {
             throw new IllegalStateException("This vehicle is already in the garage for another service.");
         }
 
-        // 5. Build the new appointment
+        // 5. Fetch multiple services
+        List<com.automobileproject.EAP.model.Service> selectedServices = serviceRepository
+                .findAllById(dto.getServiceIds());
+
+        if (selectedServices.isEmpty()) {
+            throw new EntityNotFoundException("No valid services found");
+        }
+
+        if (selectedServices.size() != dto.getServiceIds().size()) {
+            throw new EntityNotFoundException("One or more services not found");
+        }
+
+        // For backward compatibility, keep the first service as primary service
+        com.automobileproject.EAP.model.Service primaryService = selectedServices.get(0);
+
+        // 6. Build the new appointment
         Appointment appointment = Appointment.builder()
                 .vehicle(vehicle)
-                .service(service)
+                .service(primaryService)
                 .appointmentDateTime(dto.getAppointmentDateTime())
                 .customerNotes(dto.getCustomerNotes())
                 .appointmentType(Appointment.AppointmentType.STANDARD_SERVICE)
                 .status(Appointment.AppointmentStatus.SCHEDULED)
                 .build();
 
-        // 6. Save and return
+        // Add all selected services to the services collection
+        appointment.getServices().addAll(selectedServices);
+
+        // 7. Save and return
         return appointmentRepository.save(appointment);
     }
 
@@ -390,5 +405,15 @@ public class AppointmentService {
         appointment.setStatus(Appointment.AppointmentStatus.CANCELLED);
 
         return appointmentRepository.save(appointment);
+    }
+
+    /**
+     * Get all services for a specific appointment
+     */
+    public List<com.automobileproject.EAP.model.Service> getAppointmentServices(Long appointmentId) {
+        Appointment appointment = appointmentRepository.findById(appointmentId)
+                .orElseThrow(() -> new EntityNotFoundException("Appointment not found"));
+
+        return List.copyOf(appointment.getServices());
     }
 }

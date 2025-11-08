@@ -2,7 +2,6 @@ package com.automobileproject.EAP.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
-import jakarta.validation.constraints.Future;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -55,16 +54,19 @@ public class Appointment {
 
     // Optional for modification requests
     @ManyToOne(fetch = FetchType.EAGER)
-    @JoinColumn(name = "service_id",nullable = true)
+    @JoinColumn(name = "service_id", nullable = true)
     private Service service;
 
+    // Multiple services support
+    @ManyToMany(fetch = FetchType.EAGER)
+    @JoinTable(name = "appointment_services", joinColumns = @JoinColumn(name = "appointment_id"), inverseJoinColumns = @JoinColumn(name = "service_id"))
+    @Builder.Default
+    private Set<Service> services = new HashSet<>();
+
     @ManyToMany(fetch = FetchType.LAZY)
-    @JoinTable(
-            name = "appointment_assignments",
-            joinColumns = @JoinColumn(name = "appointment_id"),
-            inverseJoinColumns = @JoinColumn(name = "employee_id")
-    )
+    @JoinTable(name = "appointment_assignments", joinColumns = @JoinColumn(name = "appointment_id"), inverseJoinColumns = @JoinColumn(name = "employee_id"))
     @JsonIgnore
+    @Builder.Default
     private Set<User> assignedEmployees = new HashSet<>();
 
     @PrePersist
@@ -87,15 +89,15 @@ public class Appointment {
     public enum AppointmentStatus {
         // Standard statuses
         SCHEDULED,
-        IN_PROGRESS,             // Once the employee accepts the task
+        IN_PROGRESS, // Once the employee accepts the task
         AWAITING_PARTS,
         COMPLETED,
         CANCELLED,
 
         // Modification project statuses
-        QUOTE_REQUESTED,          // Customer has submitted a request
+        QUOTE_REQUESTED, // Customer has submitted a request
         AWAITING_CUSTOMER_APPROVAL, // Employee has submitted a quote
-        REJECTED                   // Customer has rejected the quote
+        REJECTED // Customer has rejected the quote
     }
 
     public enum AppointmentType {
