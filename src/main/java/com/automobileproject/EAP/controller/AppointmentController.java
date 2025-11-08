@@ -8,6 +8,7 @@ import com.automobileproject.EAP.dto.QuoteRequestDTO;
 import com.automobileproject.EAP.dto.TimeLogDTO;
 import com.automobileproject.EAP.dto.UpdateNotesDTO;
 import com.automobileproject.EAP.dto.UpdateStatusDTO;
+import com.automobileproject.EAP.event.AppointmentCreatedEvent;
 import com.automobileproject.EAP.model.Appointment;
 import com.automobileproject.EAP.service.AppointmentService;
 import com.automobileproject.EAP.service.TimeLogService;
@@ -18,6 +19,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
+import org.springframework.context.ApplicationEventPublisher;
 
 import java.util.List;
 
@@ -28,6 +30,7 @@ public class AppointmentController {
 
     private final AppointmentService appointmentService;
     private final TimeLogService timeLogService;
+    private final ApplicationEventPublisher publisher;
 
     @PostMapping("/standard-service")
     @PreAuthorize("hasRole('CUSTOMER')")
@@ -36,6 +39,11 @@ public class AppointmentController {
             Authentication authentication) {
         String customerEmail = authentication.getName();
         Appointment newAppointment = appointmentService.createStandardAppointment(request, customerEmail);
+
+
+        // publish async event for notifications
+        publisher.publishEvent(new AppointmentCreatedEvent(this, newAppointment.getId(), customerEmail));
+
         return new ResponseEntity<>(newAppointment, HttpStatus.CREATED);
     }
 
@@ -46,6 +54,10 @@ public class AppointmentController {
             Authentication authentication) {
         String customerEmail = authentication.getName();
         Appointment newAppointment = appointmentService.createModificationRequest(request, customerEmail);
+
+        // publish async event for notifications
+        publisher.publishEvent(new AppointmentCreatedEvent(this, newAppointment.getId(), customerEmail));
+
         return new ResponseEntity<>(newAppointment, HttpStatus.CREATED);
     }
 
@@ -150,6 +162,8 @@ public class AppointmentController {
         List<Appointment> appointments = appointmentService.getScheduledAppointments();
         return ResponseEntity.ok(appointments);
     }
+
+
 
     @PostMapping("/{id}/accept")
     @PreAuthorize("hasAnyRole('EMPLOYEE', 'ADMIN')")

@@ -32,6 +32,12 @@ public class SecurityConfig {
                 .authorizeHttpRequests(authz -> authz
                         // Allow all OPTIONS requests (CORS preflight)
                         .requestMatchers(request -> "OPTIONS".equals(request.getMethod())).permitAll()
+
+                        // WebSocket endpoints - ADD THESE LINES
+                        .requestMatchers("/ws/**").permitAll()
+                        .requestMatchers("/topic/**").permitAll()
+                        .requestMatchers("/app/**").permitAll()
+
                         // Public endpoints - MODIFIED FOR EMAIL VERIFICATION AND FORGOT PASSWORD
                         .requestMatchers("/api/register", "/api/login", "/api/verify-email", "/api/forgot-password",
                                 "/api/reset-password")
@@ -60,6 +66,13 @@ public class SecurityConfig {
                         .allowedOrigins("http://localhost:3000", "http://localhost:3002", "http://localhost:3001",
                                 "http://localhost:3003", "http://localhost:3004", "http://localhost:3005")
                         .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
+                        .allowedHeaders("*")
+                        .allowCredentials(true);
+
+                registry.addMapping("/ws/**")
+                        .allowedOrigins("http://localhost:3000", "http://localhost:3002", "http://localhost:3001",
+                                "http://localhost:3003", "http://localhost:3004", "http://localhost:3005")
+                        .allowedMethods("GET", "POST", "OPTIONS")
                         .allowedHeaders("*")
                         .allowCredentials(true);
             }
