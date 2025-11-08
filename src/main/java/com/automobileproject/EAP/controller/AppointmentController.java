@@ -40,7 +40,6 @@ public class AppointmentController {
         String customerEmail = authentication.getName();
         Appointment newAppointment = appointmentService.createStandardAppointment(request, customerEmail);
 
-
         // publish async event for notifications
         publisher.publishEvent(new AppointmentCreatedEvent(this, newAppointment.getId(), customerEmail));
 
@@ -163,8 +162,6 @@ public class AppointmentController {
         return ResponseEntity.ok(appointments);
     }
 
-
-
     @PostMapping("/{id}/accept")
     @PreAuthorize("hasAnyRole('EMPLOYEE', 'ADMIN')")
     public ResponseEntity<Appointment> acceptAppointment(
@@ -204,5 +201,12 @@ public class AppointmentController {
         String employeeEmail = authentication.getName();
         List<Appointment> appointments = appointmentService.getEmployeeCompletedAppointments(employeeEmail);
         return ResponseEntity.ok(appointments);
+    }
+
+    @GetMapping("/{id}/services")
+    @PreAuthorize("hasAnyRole('CUSTOMER', 'EMPLOYEE', 'ADMIN')")
+    public ResponseEntity<List<com.automobileproject.EAP.model.Service>> getAppointmentServices(@PathVariable Long id) {
+        List<com.automobileproject.EAP.model.Service> services = appointmentService.getAppointmentServices(id);
+        return ResponseEntity.ok(services);
     }
 }
