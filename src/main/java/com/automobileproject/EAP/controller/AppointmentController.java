@@ -202,11 +202,4 @@ public class AppointmentController {
         List<Appointment> appointments = appointmentService.getEmployeeCompletedAppointments(employeeEmail);
         return ResponseEntity.ok(appointments);
     }
-
-    @GetMapping("/{id}/services")
-    @PreAuthorize("hasAnyRole('CUSTOMER', 'EMPLOYEE', 'ADMIN')")
-    public ResponseEntity<List<com.automobileproject.EAP.model.Service>> getAppointmentServices(@PathVariable Long id) {
-        List<com.automobileproject.EAP.model.Service> services = appointmentService.getAppointmentServices(id);
-        return ResponseEntity.ok(services);
-    }
 }
