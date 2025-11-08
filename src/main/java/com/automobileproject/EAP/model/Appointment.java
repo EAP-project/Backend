@@ -2,6 +2,7 @@ package com.automobileproject.EAP.model;
 
 import com.fasterxml.jackson.annotation.JsonIgnore;
 import jakarta.persistence.*;
+import jakarta.validation.constraints.Future;
 import lombok.AllArgsConstructor;
 import lombok.Builder;
 import lombok.Data;
@@ -57,7 +58,7 @@ public class Appointment {
     @JoinColumn(name = "service_id", nullable = true)
     private Service service;
 
-    // Multiple services support
+    // Multiple services support for appointments
     @ManyToMany(fetch = FetchType.EAGER)
     @JoinTable(name = "appointment_services", joinColumns = @JoinColumn(name = "appointment_id"), inverseJoinColumns = @JoinColumn(name = "service_id"))
     @Builder.Default

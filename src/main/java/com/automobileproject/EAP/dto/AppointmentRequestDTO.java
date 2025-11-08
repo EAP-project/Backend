@@ -2,7 +2,6 @@ package com.automobileproject.EAP.dto;
 
 import jakarta.validation.constraints.Future;
 import jakarta.validation.constraints.NotNull;
-import jakarta.validation.constraints.NotEmpty;
 import lombok.AllArgsConstructor;
 import lombok.Data;
 import lombok.NoArgsConstructor;
@@ -18,11 +17,10 @@ public class AppointmentRequestDTO {
     @NotNull(message = "Vehicle ID is required")
     private Long vehicleId;
 
-    @NotNull(message = "Service ID is required")
+    // Keep for backward compatibility
     private Long serviceId;
 
-    // Multiple services support
-    @NotEmpty(message = "At least one service must be selected")
+    // Support multiple services
     private List<Long> serviceIds;
 
     @NotNull(message = "Appointment date and time are required")
