@@ -2,8 +2,7 @@ package com.automobileproject.EAP.util;
 
 import io.jsonwebtoken.*;
 import io.jsonwebtoken.security.Keys;
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.beans.factory.annotation.Value;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.stereotype.Component;
@@ -15,9 +14,8 @@ import java.util.Map;
 import java.util.function.Function;
 
 @Component
+@Slf4j
 public class JwtUtil {
-
-    private static final Logger logger = LoggerFactory.getLogger(JwtUtil.class);
 
     @Value("${jwt.secret:myDefaultSecretKeyForDevelopment1234567890123456}")
     private String secret;
@@ -26,22 +24,18 @@ public class JwtUtil {
     private Long expiration;
 
     private SecretKey getSigningKey() {
-        try {
-            // Ensure the secret is exactly 32 characters for HS256
-            String safeSecret = secret;
-            if (safeSecret.length() < 32) {
-                // Pad with zeros to make it 32 characters
-                safeSecret = String.format("%-32s", safeSecret).replace(' ', '0');
-            } else if (safeSecret.length() > 32) {
-                // Truncate to 32 characters
-                safeSecret = safeSecret.substring(0, 32);
-            }
-            logger.info("JWT Secret length: {}", safeSecret.length());
-            return Keys.hmacShaKeyFor(safeSecret.getBytes());
-        } catch (Exception e) {
-            logger.error("Error creating signing key: {}", e.getMessage());
-            throw new RuntimeException("Error creating JWT signing key", e);
+        String normalizedSecret = normalizeSecret(secret);
+        log.debug("JWT Secret length: {}", normalizedSecret.length());
+        return Keys.hmacShaKeyFor(normalizedSecret.getBytes());
+    }
+
+    private String normalizeSecret(String secret) {
+        if (secret.length() < 32) {
+            return String.format("%-32s", secret).replace(' ', '0');
+        } else if (secret.length() > 32) {
+            return secret.substring(0, 32);
         }
+        return secret;
     }
 
     public String extractUsername(String token) {
@@ -52,8 +46,12 @@ public class JwtUtil {
         return extractClaim(token, Claims::getExpiration);
     }
 
+    public String extractRole(String token) {
+        return extractClaim(token, claims -> claims.get("role", String.class));
+    }
+
     public <T> T extractClaim(String token, Function<Claims, T> claimsResolver) {
-        final Claims claims = extractAllClaims(token);
+        Claims claims = extractAllClaims(token);
         return claimsResolver.apply(claims);
     }
 
@@ -65,17 +63,16 @@ public class JwtUtil {
                     .parseClaimsJws(token)
                     .getBody();
         } catch (ExpiredJwtException e) {
-            logger.warn("JWT token expired: {}", e.getMessage());
+            log.warn("JWT token expired");
             throw new RuntimeException("JWT token has expired", e);
         } catch (MalformedJwtException e) {
-            logger.warn("Invalid JWT token format: {}", e.getMessage());
+            log.warn("Invalid JWT token format");
             throw new RuntimeException("Invalid JWT token format", e);
         } catch (SignatureException e) {
-            logger.error("JWT signature validation failed: {}", e.getMessage());
-            logger.error("This usually means the JWT secret key has changed or is incorrect");
+            log.error("JWT signature validation failed");
             throw new RuntimeException("JWT signature validation failed", e);
         } catch (JwtException e) {
-            logger.warn("JWT validation error: {}", e.getMessage());
+            log.warn("JWT validation error: {}", e.getMessage());
             throw new RuntimeException("Invalid JWT token", e);
         }
     }
@@ -84,44 +81,63 @@ public class JwtUtil {
         try {
             return extractExpiration(token).before(new Date());
         } catch (Exception e) {
-            logger.warn("Error checking token expiration: {}", e.getMessage());
+            log.warn("Error checking token expiration");
             return true;
         }
     }
 
     public String generateToken(UserDetails userDetails) {
         Map<String, Object> claims = new HashMap<>();
+        
+        log.info("Generating token for user: {}", userDetails.getUsername());
+        log.info("User authorities: {}", userDetails.getAuthorities());
+        
+        // Extract role from authorities
+        userDetails.getAuthorities().stream()
+                .findFirst()
+                .ifPresent(authority -> {
+                    String role = authority.getAuthority();
+                    log.info("Found authority: {}", role);
+                    // Remove "ROLE_" prefix if present
+                    if (role.startsWith("ROLE_")) {
+                        role = role.substring(5);
+                    }
+                    claims.put("role", role);
+                    log.info("Added role to JWT claims: {}", role);
+                });
+        
+        log.info("Final claims map: {}", claims);
         return createToken(claims, userDetails.getUsername());
     }
 
     private String createToken(Map<String, Object> claims, String subject) {
-        try {
-            String token = Jwts.builder()
-                    .setClaims(claims)
-                    .setSubject(subject)
-                    .setIssuedAt(new Date(System.currentTimeMillis()))
-                    .setExpiration(new Date(System.currentTimeMillis() + expiration))
-                    .signWith(getSigningKey(), SignatureAlgorithm.HS256)
-                    .compact();
+        Date now = new Date();
+        Date expiryDate = new Date(now.getTime() + expiration);
 
-            logger.info("Generated JWT token for user: {}", subject);
-            return token;
-        } catch (Exception e) {
-            logger.error("Error generating JWT token: {}", e.getMessage());
-            throw new RuntimeException("Error generating JWT token", e);
-        }
+        String token = Jwts.builder()
+                .setClaims(claims)
+                .setSubject(subject)
+                .setIssuedAt(now)
+                .setExpiration(expiryDate)
+                .signWith(getSigningKey(), SignatureAlgorithm.HS256)
+                .compact();
+
+        log.info("Generated JWT token for user: {}", subject);
+        return token;
     }
 
     public Boolean validateToken(String token, UserDetails userDetails) {
         try {
-            final String username = extractUsername(token);
-            boolean isValid = username.equals(userDetails.getUsername()) && !isTokenExpired(token);
+            String email = extractUsername(token);
+            boolean isValid = email.equals(userDetails.getUsername()) && !isTokenExpired(token);
+
             if (!isValid) {
-                logger.warn("JWT token validation failed for user: {}", username);
+                log.warn("JWT token validation failed for user: {}", email);
             }
+
             return isValid;
         } catch (Exception e) {
-            logger.warn("JWT token validation error: {}", e.getMessage());
+            log.warn("JWT token validation error: {}", e.getMessage());
             return false;
         }
     }

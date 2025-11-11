@@ -1,9 +1,13 @@
 package com.automobileproject.EAP.controller;
 
+import com.automobileproject.EAP.dto.*;
+import com.automobileproject.EAP.mapper.UserMapper;
 import com.automobileproject.EAP.model.User;
 import com.automobileproject.EAP.service.UserService;
 import com.automobileproject.EAP.util.JwtUtil;
-import org.springframework.beans.factory.annotation.Autowired;
+import jakarta.validation.Valid;
+import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.authentication.AuthenticationManager;
@@ -11,214 +15,172 @@ import org.springframework.security.authentication.BadCredentialsException;
 import org.springframework.security.authentication.UsernamePasswordAuthenticationToken;
 import org.springframework.security.core.userdetails.UserDetails;
 import org.springframework.security.core.userdetails.UserDetailsService;
-import org.springframework.security.crypto.password.PasswordEncoder;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
+// ADDED FOR EMAIL VERIFICATION
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestParam;
 
 @RestController
 @RequestMapping("/api")
+@RequiredArgsConstructor
+@Slf4j
 public class AuthController {
 
-    @Autowired
-    private UserService userService;
-
-    @Autowired
-    private PasswordEncoder passwordEncoder;
-
-    @Autowired
-    private AuthenticationManager authenticationManager;
-
-    @Autowired
-    private UserDetailsService userDetailsService;
-
-    @Autowired
-    private JwtUtil jwtUtil;
+    private final UserService userService;
+    private final AuthenticationManager authenticationManager;
+    private final UserDetailsService userDetailsService;
+    private final JwtUtil jwtUtil;
+    private final UserMapper userMapper;
 
     @PostMapping("/register")
-    public ResponseEntity<?> registerUser(@RequestBody User user) {
+    public ResponseEntity<?> registerUser(@Valid @RequestBody RegistrationRequest request) {
         try {
-            System.out.println("Received registration request for: " + user.getUsername() + " with role: " + user.getRole());
+            log.info("Registration request received for: {}", request.getEmail());
 
-            // Validate role
-            if (user.getRole() == null) {
-                return ResponseEntity.badRequest().body(
-                        new ErrorResponse("Role is required. Available roles: MANAGER, CUSTOMER, SUPERVISOR, TECHNICIAN")
-                );
-            }
+            User savedUser = userService.registerUser(request);
+            RegistrationResponse response = userMapper.toRegistrationResponse(savedUser);
 
-            User savedUser = userService.registerUser(user);
-            System.out.println("User registered successfully: " + savedUser.getUsername());
+            return ResponseEntity.ok(response);
 
-            return ResponseEntity.ok(
-                    new RegistrationResponse("User registered successfully",
-                            savedUser.getUsername(),
-                            savedUser.getEmail(),
-                            savedUser.getRole().name(),
-                            savedUser.getFirstName(),
-                            savedUser.getLastName())
-            );
-        } catch (RuntimeException e) {
-            System.out.println("Registration failed: " + e.getMessage());
-            return ResponseEntity.badRequest().body(
-                    new ErrorResponse("Registration failed: " + e.getMessage())
-            );
+        } catch (IllegalArgumentException e) {
+            log.warn("Registration failed: {}", e.getMessage());
+            return ResponseEntity.badRequest().body(new ErrorResponse(e.getMessage()));
+
         } catch (Exception e) {
-            System.out.println("Internal server error: " + e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
-                    new ErrorResponse("Internal server error: " + e.getMessage())
-            );
+            log.error("Unexpected error during registration", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ErrorResponse("Internal server error: " + e.getMessage()));
         }
     }
 
     @PostMapping("/login")
-    public ResponseEntity<?> loginUser(@RequestBody LoginRequest loginRequest) {
+    public ResponseEntity<?> loginUser(@Valid @RequestBody LoginRequest request) {
         try {
-            System.out.println("Received login request for: " + loginRequest.getUsername());
+            log.info("Login request received for: {}", request.getEmail());
 
-            // Basic validation
-            if (loginRequest.getUsername() == null || loginRequest.getUsername().trim().isEmpty() ||
-                    loginRequest.getPassword() == null || loginRequest.getPassword().trim().isEmpty()) {
-                return ResponseEntity.badRequest().body(
-                        new ErrorResponse("Username and password are required")
-                );
+            // Check if user exists and email is verified - ADDED FOR EMAIL VERIFICATION
+            User user = userService.findByEmail(request.getEmail());
+            if (!user.getEmailVerified()) {
+                log.warn("Login attempt with unverified email: {}", request.getEmail());
+                return ResponseEntity.status(HttpStatus.FORBIDDEN)
+                        .body(new ErrorResponse(
+                                "Please verify your email address before logging in. Check your inbox for the verification link."));
             }
 
-            // Authenticate user
-            try {
-                authenticationManager.authenticate(
-                        new UsernamePasswordAuthenticationToken(loginRequest.getUsername(), loginRequest.getPassword())
-                );
-            } catch (BadCredentialsException e) {
-                return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(
-                        new ErrorResponse("Invalid username or password")
-                );
-            }
+            authenticateUser(request.getEmail(), request.getPassword());
 
-            // Load user details and generate token
-            final UserDetails userDetails = userDetailsService.loadUserByUsername(loginRequest.getUsername());
-            final String jwt = jwtUtil.generateToken(userDetails);
+            UserDetails userDetails = userDetailsService.loadUserByUsername(request.getEmail());
+            String jwt = jwtUtil.generateToken(userDetails);
 
-            // Find user for additional details
-            User user = userService.findByUsername(loginRequest.getUsername());
+            LoginResponse response = userMapper.toLoginResponse(user, jwt);
 
-            System.out.println("Login successful for: " + user.getUsername() + " with role: " + user.getRole());
-            return ResponseEntity.ok(new LoginResponse(
-                    "Login successful",
-                    user.getUsername(),
-                    user.getEmail(),
-                    user.getRole().name(),
-                    user.getFirstName(),
-                    user.getLastName(),
-                    user.getPhoneNumber(),
-                    jwt
-            ));
+            log.info("Login successful for: {}", user.getEmail());
+            return ResponseEntity.ok(response);
+
+        } catch (BadCredentialsException e) {
+            log.warn("Invalid credentials for: {}", request.getEmail());
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+                    .body(new ErrorResponse("Invalid email or password"));
 
         } catch (Exception e) {
-            System.out.println("Login error: " + e.getMessage());
-            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR).body(
-                    new ErrorResponse("Login error: " + e.getMessage())
-            );
+            log.error("Login error for: {}", request.getEmail(), e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ErrorResponse("Login error: " + e.getMessage()));
         }
     }
 
-    // Request DTO for Login
-    public static class LoginRequest {
-        private String username;
-        private String password;
-
-        // Getters and setters
-        public String getUsername() { return username; }
-        public void setUsername(String username) { this.username = username; }
-        public String getPassword() { return password; }
-        public void setPassword(String password) { this.password = password; }
+    private void authenticateUser(String email, String password) {
+        authenticationManager.authenticate(
+                new UsernamePasswordAuthenticationToken(email, password));
     }
 
-    // Response DTOs
-    public static class RegistrationResponse {
-        private String message;
-        private String username;
-        private String email;
-        private String role;
-        private String firstName;
-        private String lastName;
+    // Email verification endpoint - ADDED FOR EMAIL VERIFICATION
+    @GetMapping("/verify-email")
+    public ResponseEntity<?> verifyEmail(@RequestParam("token") String token) {
+        try {
+            log.info("Email verification request received with token");
 
-        public RegistrationResponse(String message, String username, String email, String role, String firstName, String lastName) {
-            this.message = message;
-            this.username = username;
-            this.email = email;
-            this.role = role;
-            this.firstName = firstName;
-            this.lastName = lastName;
+            userService.verifyEmail(token);
+
+            return ResponseEntity.ok("Email verified successfully! You can now log in to your account.");
+
+        } catch (IllegalArgumentException e) {
+            log.warn("Email verification failed: {}", e.getMessage());
+            return ResponseEntity.badRequest()
+                    .body(new ErrorResponse(e.getMessage()));
+
+        } catch (Exception e) {
+            log.error("Error during email verification", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ErrorResponse("Verification error: " + e.getMessage()));
         }
-
-        // Getters and setters
-        public String getMessage() { return message; }
-        public void setMessage(String message) { this.message = message; }
-        public String getUsername() { return username; }
-        public void setUsername(String username) { this.username = username; }
-        public String getEmail() { return email; }
-        public void setEmail(String email) { this.email = email; }
-        public String getRole() { return role; }
-        public void setRole(String role) { this.role = role; }
-        public String getFirstName() { return firstName; }
-        public void setFirstName(String firstName) { this.firstName = firstName; }
-        public String getLastName() { return lastName; }
-        public void setLastName(String lastName) { this.lastName = lastName; }
     }
 
-    public static class LoginResponse {
-        private String message;
-        private String username;
-        private String email;
-        private String role;
-        private String firstName;
-        private String lastName;
-        private String phoneNumber;
-        private String token;
-        private String tokenType = "Bearer";
+    // Forgot password endpoint - ADDED FOR FORGOT PASSWORD FEATURE
+    @PostMapping("/forgot-password")
+    public ResponseEntity<?> forgotPassword(@Valid @RequestBody ForgotPasswordRequest request) {
+        try {
+            log.info("Forgot password request received for: {}", request.getEmail());
 
-        public LoginResponse(String message, String username, String email, String role, String firstName, String lastName, String phoneNumber, String token) {
-            this.message = message;
-            this.username = username;
-            this.email = email;
-            this.role = role;
-            this.firstName = firstName;
-            this.lastName = lastName;
-            this.phoneNumber = phoneNumber;
-            this.token = token;
+            userService.requestPasswordReset(request.getEmail());
+
+            return ResponseEntity.ok("Password reset email sent successfully. Please check your inbox.");
+
+        } catch (Exception e) {
+            log.error("Forgot password error for: {}", request.getEmail(), e);
+            // Don't reveal if email exists or not for security - ADDED FOR FORGOT PASSWORD
+            // FEATURE
+            return ResponseEntity.ok("If the email exists, a password reset link will be sent.");
         }
-
-        // Getters and setters
-        public String getMessage() { return message; }
-        public void setMessage(String message) { this.message = message; }
-        public String getUsername() { return username; }
-        public void setUsername(String username) { this.username = username; }
-        public String getEmail() { return email; }
-        public void setEmail(String email) { this.email = email; }
-        public String getRole() { return role; }
-        public void setRole(String role) { this.role = role; }
-        public String getFirstName() { return firstName; }
-        public void setFirstName(String firstName) { this.firstName = firstName; }
-        public String getLastName() { return lastName; }
-        public void setLastName(String lastName) { this.lastName = lastName; }
-        public String getPhoneNumber() { return phoneNumber; }
-        public void setPhoneNumber(String phoneNumber) { this.phoneNumber = phoneNumber; }
-        public String getToken() { return token; }
-        public void setToken(String token) { this.token = token; }
-        public String getTokenType() { return tokenType; }
-        public void setTokenType(String tokenType) { this.tokenType = tokenType; }
     }
 
-    public static class ErrorResponse {
-        private String error;
+    // Reset password endpoint - ADDED FOR FORGOT PASSWORD FEATURE
+    @PostMapping("/reset-password")
+    public ResponseEntity<?> resetPassword(@Valid @RequestBody ResetPasswordRequest request) {
+        try {
+            log.info("Reset password request received");
 
-        public ErrorResponse(String error) {
-            this.error = error;
+            userService.resetPassword(request.getToken(), request.getNewPassword());
+
+            return ResponseEntity.ok("Password reset successfully! You can now log in with your new password.");
+
+        } catch (IllegalArgumentException e) {
+            log.warn("Password reset failed: {}", e.getMessage());
+            return ResponseEntity.badRequest()
+                    .body(new ErrorResponse(e.getMessage()));
+
+        } catch (Exception e) {
+            log.error("Error during password reset", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ErrorResponse("Password reset error: " + e.getMessage()));
         }
+    }
 
-        public String getError() { return error; }
-        public void setError(String error) { this.error = error; }
+    // Validate password reset token from email link - ADDED FOR FORGOT PASSWORD
+    // FEATURE
+    @GetMapping("/reset-password")
+    public ResponseEntity<?> validateResetToken(@RequestParam("token") String token) {
+        try {
+            log.info("Password reset token validation request received");
+
+            // Validate the token exists and is not expired
+            userService.validatePasswordResetToken(token);
+
+            return ResponseEntity
+                    .ok("Token is valid. Please use POST /api/reset-password with your new password. Token: " + token);
+
+        } catch (IllegalArgumentException e) {
+            log.warn("Password reset token validation failed: {}", e.getMessage());
+            return ResponseEntity.badRequest()
+                    .body(new ErrorResponse(e.getMessage()));
+
+        } catch (Exception e) {
+            log.error("Error validating password reset token", e);
+            return ResponseEntity.status(HttpStatus.INTERNAL_SERVER_ERROR)
+                    .body(new ErrorResponse("Token validation error: " + e.getMessage()));
+        }
     }
 }
