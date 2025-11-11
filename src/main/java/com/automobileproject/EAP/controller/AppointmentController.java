@@ -1,19 +1,24 @@
 package com.automobileproject.EAP.controller;
 
 import com.automobileproject.EAP.dto.AppointmentRequestDTO;
+import com.automobileproject.EAP.dto.AppointmentSlotDTO;
 import com.automobileproject.EAP.dto.AssignEmployeeDTO;
 import com.automobileproject.EAP.dto.CreateTimeLogDTO;
 import com.automobileproject.EAP.dto.ModificationRequestDTO;
 import com.automobileproject.EAP.dto.QuoteRequestDTO;
+import com.automobileproject.EAP.dto.SlotBasedAppointmentRequestDTO;
 import com.automobileproject.EAP.dto.TimeLogDTO;
 import com.automobileproject.EAP.dto.UpdateNotesDTO;
 import com.automobileproject.EAP.dto.UpdateStatusDTO;
 import com.automobileproject.EAP.event.AppointmentCreatedEvent;
 import com.automobileproject.EAP.model.Appointment;
+import com.automobileproject.EAP.model.AppointmentSlot;
 import com.automobileproject.EAP.service.AppointmentService;
 import com.automobileproject.EAP.service.TimeLogService;
 import jakarta.validation.Valid;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
+import org.springframework.format.annotation.DateTimeFormat;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ResponseEntity;
 import org.springframework.security.access.prepost.PreAuthorize;
@@ -21,11 +26,13 @@ import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import org.springframework.context.ApplicationEventPublisher;
 
+import java.time.LocalDate;
 import java.util.List;
 
 @RestController
 @RequestMapping("/api/appointments")
 @RequiredArgsConstructor
+@Slf4j
 public class AppointmentController {
 
     private final AppointmentService appointmentService;
@@ -44,6 +51,51 @@ public class AppointmentController {
         publisher.publishEvent(new AppointmentCreatedEvent(this, newAppointment.getId(), customerEmail));
 
         return new ResponseEntity<>(newAppointment, HttpStatus.CREATED);
+    }
+
+    /**
+     * NEW: Create a standard appointment with slot-based booking.
+     * This is the recommended endpoint for booking appointments with the new slot system.
+     */
+    @PostMapping("/slot-based-service")
+    @PreAuthorize("hasRole('CUSTOMER')")
+    public ResponseEntity<Appointment> createSlotBasedAppointment(
+            @Valid @RequestBody SlotBasedAppointmentRequestDTO request,
+            Authentication authentication
+    ) {
+        String customerEmail = authentication.getName();
+        Appointment newAppointment = appointmentService.createSlotBasedAppointment(request, customerEmail);
+        return new ResponseEntity<>(newAppointment, HttpStatus.CREATED);
+    }
+
+    /**
+     * Get available slots for a specific date and session period.
+     * Public endpoint - no authentication required.
+     */
+    @GetMapping("/available-slots")
+    public ResponseEntity<List<AppointmentSlotDTO>> getAvailableSlots(
+            @RequestParam @DateTimeFormat(iso = DateTimeFormat.ISO.DATE) LocalDate date,
+            @RequestParam AppointmentSlot.SessionPeriod period
+    ) {
+        try {
+            log.info("GET /api/appointments/available-slots - date: {}, period: {}", date, period);
+            List<AppointmentSlotDTO> slots = appointmentService.getAvailableSlots(date, period);
+            log.info("Returning {} slots", slots.size());
+            return ResponseEntity.ok(slots);
+        } catch (Exception e) {
+            log.error("Error fetching available slots for date: {} and period: {}", date, period, e);
+            throw e;
+        }
+    }
+
+    /**
+     * Get all slot templates (MORNING and AFTERNOON slots with their time ranges).
+     * Public endpoint - no authentication required.
+     */
+    @GetMapping("/slot-templates")
+    public ResponseEntity<List<AppointmentSlotDTO>> getSlotTemplates() {
+        List<AppointmentSlotDTO> templates = appointmentService.getAllSlotTemplates();
+        return ResponseEntity.ok(templates);
     }
 
     @PostMapping("/modification-request")

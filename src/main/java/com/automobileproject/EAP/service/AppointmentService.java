@@ -1,12 +1,15 @@
 package com.automobileproject.EAP.service;
 
 import com.automobileproject.EAP.dto.AppointmentRequestDTO;
+import com.automobileproject.EAP.dto.AppointmentSlotDTO;
 import com.automobileproject.EAP.dto.AssignEmployeeDTO;
 import com.automobileproject.EAP.dto.ModificationRequestDTO;
 import com.automobileproject.EAP.dto.QuoteRequestDTO;
+import com.automobileproject.EAP.dto.SlotBasedAppointmentRequestDTO;
 import com.automobileproject.EAP.dto.UpdateNotesDTO;
 import com.automobileproject.EAP.dto.UpdateStatusDTO;
 import com.automobileproject.EAP.model.Appointment;
+import com.automobileproject.EAP.model.AppointmentSlot;
 import com.automobileproject.EAP.model.TimeLog;
 import com.automobileproject.EAP.model.User;
 import com.automobileproject.EAP.model.Vehicle;
@@ -17,20 +20,26 @@ import com.automobileproject.EAP.repository.UserRepository;
 import com.automobileproject.EAP.repository.VehicleRepository;
 import jakarta.persistence.EntityNotFoundException;
 import lombok.RequiredArgsConstructor;
+import lombok.extern.slf4j.Slf4j;
 import org.springframework.security.access.AccessDeniedException;
 import org.springframework.security.core.userdetails.UsernameNotFoundException;
 import org.springframework.stereotype.Service;
 import org.springframework.transaction.annotation.Transactional;
 
+import java.time.LocalDate;
 import java.time.OffsetDateTime;
+import java.time.ZoneId;
+import java.util.HashSet;
+import java.util.Set;
 import java.util.Arrays;
 import java.util.HashSet;
 import java.util.List;
-import java.util.Optional;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 @Service
 @RequiredArgsConstructor
+@Slf4j
 public class AppointmentService {
 
     private final AppointmentRepository appointmentRepository;
@@ -38,6 +47,7 @@ public class AppointmentService {
     private final VehicleRepository vehicleRepository;
     private final ServiceRepository serviceRepository;
     private final TimeLogRepository timeLogRepository;
+    private final AppointmentSlotService appointmentSlotService;
 
     // Define which statuses mean a car is "In the Garage"
     private static final List<Appointment.AppointmentStatus> ACTIVE_STATUSES = Arrays.asList(
@@ -93,6 +103,8 @@ public class AppointmentService {
         }
 
         // 7. Build the new appointment
+        // NOTE: This method uses appointmentDateTime directly from DTO
+        // For slot-based booking, use createSlotBasedAppointment() instead
         Appointment appointment = Appointment.builder()
                 .vehicle(vehicle)
                 .service(primaryService) // Keep primary service for backward compatibility
@@ -101,6 +113,7 @@ public class AppointmentService {
                 .customerNotes(dto.getCustomerNotes())
                 .appointmentType(Appointment.AppointmentType.STANDARD_SERVICE)
                 .status(Appointment.AppointmentStatus.SCHEDULED)
+                // appointmentSlot is NULL for old-style bookings
                 .build();
 
         // 8. Save and return
@@ -414,5 +427,151 @@ public class AppointmentService {
         appointment.setStatus(Appointment.AppointmentStatus.CANCELLED);
 
         return appointmentRepository.save(appointment);
+    }
+
+    /**
+     * NEW: Create a standard appointment with slot-based booking.
+     * This is the recommended method for the new slot system used by AI chatbot.
+     * NOW SUPPORTS MULTIPLE SERVICES per appointment.
+     */
+    @Transactional
+    public Appointment createSlotBasedAppointment(SlotBasedAppointmentRequestDTO dto, String customerEmail) {
+        log.info("Creating slot-based appointment for customer: {}", customerEmail);
+
+        // 1. Find the logged-in customer
+        User customer = userRepository.findByEmail(customerEmail)
+                .orElseThrow(() -> new UsernameNotFoundException("User not found: " + customerEmail));
+
+        // 2. Find the vehicle from the request
+        Vehicle vehicle = vehicleRepository.findById(dto.getVehicleId())
+                .orElseThrow(() -> new EntityNotFoundException("Vehicle not found"));
+
+        // 3. Find all selected services
+        Set<com.automobileproject.EAP.model.Service> services = new HashSet<>();
+        for (Long serviceId : dto.getServiceIds()) {
+            com.automobileproject.EAP.model.Service service = serviceRepository.findById(serviceId)
+                    .orElseThrow(() -> new EntityNotFoundException("Service not found with ID: " + serviceId));
+            services.add(service);
+        }
+
+        // For backward compatibility with single service field
+        com.automobileproject.EAP.model.Service primaryService = services.iterator().next();
+
+        // 4. Security check - ensure the vehicle belongs to the customer
+        if (!vehicle.getOwner().getId().equals(customer.getId())) {
+            throw new AccessDeniedException("You do not have permission to book an appointment for this vehicle.");
+        }
+
+        // 5. Check if the vehicle is already in the garage
+        boolean isVehicleBusy = appointmentRepository.existsByVehicleIdAndStatusIn(vehicle.getId(), ACTIVE_STATUSES);
+        if (isVehicleBusy) {
+            throw new IllegalStateException("This vehicle is already in the garage for another service.");
+        }
+
+        // 6. Find the slot template
+        AppointmentSlot slot = appointmentSlotService.findSlotTemplate(
+                dto.getSessionPeriod(),
+                dto.getSlotNumber()
+        );
+
+        // 7. Check if the slot is available on the requested date
+        boolean isAvailable = appointmentSlotService.isSlotAvailable(
+                dto.getAppointmentDate(),
+                dto.getSessionPeriod(),
+                dto.getSlotNumber()
+        );
+
+        if (!isAvailable) {
+            throw new IllegalStateException(
+                    String.format("The requested slot (%s Slot %d) is already booked on %s. Please choose another slot.",
+                            dto.getSessionPeriod(), dto.getSlotNumber(), dto.getAppointmentDate())
+            );
+        }
+
+        // 8. Convert slot date + time to OffsetDateTime for appointmentDateTime
+        OffsetDateTime appointmentDateTime = OffsetDateTime.of(
+                dto.getAppointmentDate(),
+                slot.getStartTime(),
+                ZoneId.systemDefault().getRules().getOffset(dto.getAppointmentDate().atTime(slot.getStartTime()))
+        );
+
+        // 9. Build and save the new appointment with multiple services
+        Appointment appointment = Appointment.builder()
+                .vehicle(vehicle)
+                .service(primaryService)  // Primary service for backward compatibility
+                .appointmentDateTime(appointmentDateTime)
+                .appointmentSlot(slot)
+                .customerNotes(dto.getCustomerNotes())
+                .appointmentType(Appointment.AppointmentType.STANDARD_SERVICE)
+                .status(Appointment.AppointmentStatus.SCHEDULED)
+                .build();
+
+        // Set services after building (Lombok @Builder.Default doesn't always work with collections)
+        appointment.setServices(services);
+
+        log.info("Slot-based appointment created successfully for date: {} at slot: {} {} with {} service(s)",
+                dto.getAppointmentDate(), dto.getSessionPeriod(), dto.getSlotNumber(), services.size());
+
+        return appointmentRepository.save(appointment);
+    }
+
+    /**
+     * Get available slots for a specific date and session period.
+     * Returns all 5 slots with availability status based on existing bookings.
+     * CRITICAL for AI chatbot functionality.
+     */
+    @Transactional(readOnly = true)
+    public List<AppointmentSlotDTO> getAvailableSlots(LocalDate date, AppointmentSlot.SessionPeriod period) {
+        log.info("Fetching available slots for date: {} and period: {}", date, period);
+
+        // 1. Get all slot templates for the period (always 5 slots: 1-5)
+        List<AppointmentSlot> templates = appointmentSlotService.getSlotTemplatesByPeriod(period);
+        log.info("Found {} slot templates for period {}", templates.size(), period);
+
+        // 2. Get already booked appointments for this specific date and period
+        List<Appointment> bookedAppointments = appointmentRepository
+                .findByAppointmentDateAndSessionPeriod(date, period);
+        log.info("Found {} booked appointments for date {} and period {}",
+                bookedAppointments.size(), date, period);
+
+        // 3. Extract booked slot numbers - appointmentSlot is eagerly fetched via JOIN FETCH
+        Set<Integer> bookedSlotNumbers = bookedAppointments.stream()
+                .filter(apt -> apt.getAppointmentSlot() != null)
+                .map(apt -> apt.getAppointmentSlot().getSlotNumber())
+                .collect(Collectors.toSet());
+        log.info("Booked slot numbers: {}", bookedSlotNumbers);
+
+        // 4. Map templates to DTOs with availability
+        List<AppointmentSlotDTO> result = templates.stream()
+                .map(template -> AppointmentSlotDTO.builder()
+                        .slotNumber(template.getSlotNumber())
+                        .sessionPeriod(template.getSessionPeriod())
+                        .startTime(template.getStartTime())
+                        .endTime(template.getEndTime())
+                        .isAvailable(!bookedSlotNumbers.contains(template.getSlotNumber()))
+                        .build())
+                .collect(Collectors.toList());
+
+        log.info("Returning {} slots with availability info", result.size());
+        return result;
+    }
+
+    /**
+     * Get all slot templates (10 total: 5 MORNING + 5 AFTERNOON).
+     * These are the static time slot definitions.
+     * CRITICAL for AI chatbot functionality.
+     */
+    public List<AppointmentSlotDTO> getAllSlotTemplates() {
+        List<AppointmentSlot> allTemplates = appointmentSlotService.getAllSlotTemplates();
+
+        return allTemplates.stream()
+                .map(template -> AppointmentSlotDTO.builder()
+                        .slotNumber(template.getSlotNumber())
+                        .sessionPeriod(template.getSessionPeriod())
+                        .startTime(template.getStartTime())
+                        .endTime(template.getEndTime())
+                        .isAvailable(true) // Templates are always "available" - actual availability checked by date
+                        .build())
+                .collect(Collectors.toList());
     }
 }

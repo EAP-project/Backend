@@ -33,22 +33,39 @@ public class SecurityConfig {
                         // Allow all OPTIONS requests (CORS preflight)
                         .requestMatchers(request -> "OPTIONS".equals(request.getMethod())).permitAll()
 
-                        // WebSocket endpoints - ADD THESE LINES
+                        // WebSocket endpoints
                         .requestMatchers("/ws/**").permitAll()
                         .requestMatchers("/topic/**").permitAll()
                         .requestMatchers("/app/**").permitAll()
 
-                        // Public endpoints - MODIFIED FOR EMAIL VERIFICATION AND FORGOT PASSWORD
-                        .requestMatchers("/api/register", "/api/login", "/api/verify-email", "/api/forgot-password",
-                                "/api/reset-password")
-                        .permitAll()
+                        // Public endpoints for authentication, email verification, password reset, and chatbot
+                        .requestMatchers(
+                                "/api/register",
+                                "/api/login",
+                                "/api/verify-email",
+                                "/api/forgot-password",
+                                "/api/reset-password",
+                                "/api/slots/available/**",
+                                "/api/slots/check-availability",
+                                "/api/slots/count",
+                                "/api/appointments/available-slots",
+                                "/api/appointments/slot-templates"
+                        ).permitAll()
+
+                        // Role-based access
                         .requestMatchers("/api/admin/**").hasRole("ADMIN")
                         .requestMatchers("/api/customer/**").hasRole("CUSTOMER")
                         .requestMatchers("/api/employee/**").hasRole("EMPLOYEE")
+
+                        // Authenticated access for all other API routes
                         .requestMatchers("/api/**").authenticated()
-                        .anyRequest().permitAll())
+
+                        // Permit all other non-API requests (e.g., static assets)
+                        .anyRequest().permitAll()
+                )
                 .sessionManagement(session -> session
-                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS))
+                        .sessionCreationPolicy(SessionCreationPolicy.STATELESS)
+                )
                 .formLogin(form -> form.disable())
                 .httpBasic(httpBasic -> httpBasic.disable())
                 .logout(logout -> logout.disable())
@@ -63,15 +80,27 @@ public class SecurityConfig {
             @Override
             public void addCorsMappings(CorsRegistry registry) {
                 registry.addMapping("/api/**")
-                        .allowedOrigins("http://localhost:3000", "http://localhost:3002", "http://localhost:3001",
-                                "http://localhost:3003", "http://localhost:3004", "http://localhost:3005")
+                        .allowedOrigins(
+                                "http://localhost:3000",
+                                "http://localhost:3001",
+                                "http://localhost:3002",
+                                "http://localhost:3003",
+                                "http://localhost:3004",
+                                "http://localhost:3005"
+                        )
                         .allowedMethods("GET", "POST", "PUT", "DELETE", "OPTIONS")
                         .allowedHeaders("*")
                         .allowCredentials(true);
 
                 registry.addMapping("/ws/**")
-                        .allowedOrigins("http://localhost:3000", "http://localhost:3002", "http://localhost:3001",
-                                "http://localhost:3003", "http://localhost:3004", "http://localhost:3005")
+                        .allowedOrigins(
+                                "http://localhost:3000",
+                                "http://localhost:3001",
+                                "http://localhost:3002",
+                                "http://localhost:3003",
+                                "http://localhost:3004",
+                                "http://localhost:3005"
+                        )
                         .allowedMethods("GET", "POST", "OPTIONS")
                         .allowedHeaders("*")
                         .allowCredentials(true);
